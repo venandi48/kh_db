@@ -196,3 +196,18 @@ select
 from employee
 where dept_code in ('D5', 'D6', 'D9')
 order by dept_code;
+
+
+-- ==================================================
+-- #group by & having
+-- ==================================================
+/*
+manager_id컬럼은 관리자사원의 emp_id를 가리킨다.
+관리하는 사원이 2명이상인 매니져의 사원아이디와 관리하는 사원수를 출력하세요.
+*/
+select
+    manager_id "관리자 사원ID",
+    count(*) "관리 사원 수"
+from employee
+group by manager_id
+having count(manager_id) >= 2;
