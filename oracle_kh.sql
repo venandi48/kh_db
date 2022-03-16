@@ -282,7 +282,7 @@ where dept_code = 'D9'; -- 따옴표 안의 문자열은 실제값이므로 대�
     =
     >, <, >=, <=
     !=, <>, ^=          : 같지않다
-    betweem a and b     : a이상 b이하
+    between a and b     : a이상 b이하
     like | not like     : 문자패턴 비교
     is null | is not null : null값 비교
     in | not in         : 값 목록에 포함여부
@@ -609,3 +609,397 @@ select
     to_char(sysdate, 'yy/mm/dd hh24:mi:ss') "sysdate",
     to_char(trunc(sysdate), 'yy/mm/dd hh24:mi:ss') "trunc_sysdate"
 from dual;
+
+-- ++++++++++++++++++++++++++++++++++++++++++++++
+-- d. 형변환 함수
+-- ++++++++++++++++++++++++++++++++++++++++++++++
+
+/*
+    to_char         to_date
+    ---------->  ----------->
+number        char          date
+    <----------  <-----------
+    to_number       to_char
+*/
+
+-- to_char(date,format_char) : char
+select
+    to_char(sysdate, 'yyyy-mm-dd hh24:mi:ss') 날짜,
+    to_char(sysdate, 'yyyy-mm-dd (day) hh:mi:ss') 날짜, -- 12시간제
+    to_char(sysdate, 'yyyy-mm-dd (day) (dy) (d)') 날짜, -- 1:일요일, 2:월요일
+    to_char(sysdate, 'yyyy"년" mm"월" dd"일"') 날짜,
+    to_char(sysdate, 'fmyyyy"년" mm"월" dd"일"') 날짜 -- 포맷으로 생긴 공백(0) 제거
+from dual;
+
+-- to_char(number, formar_char) : char
+-- 세자리 콤마적용, 소수점이하 처리
+-- 실제값보다 자리수가 적으면 표시할 수 없음
+select
+    to_char(1234567890, '9,999') "###",
+    to_char(1234567890, '999,999,999,999') "정상처리",
+    to_char(1234567890, 'fm999,999,999,999') "여백제외",
+    123 숫자숫자숫자,
+    to_char(1234567890, 'fmL999,999,999,999') "지역통화기호", -- L 지역통화기호
+    to_char(123.456, 'fm99999.99999') "포맷9", -- 소수점이상 공백, 소수점이하 0채움 처리
+    to_char(123.456, 'fm00000.00000') "포맷0" -- 소수점이상, 이하 모두 0채움 처리
+from dual;
+
+-- 사원테이블에서 사원명, 급여, 연봉(급여 * 12), 입사일 조회
+-- 금액형식지정, 년월일 형식
+select
+    emp_name "사원명",
+    to_char(salary, 'fmL999,999,999') "급여",
+    to_char(salary * 12, 'fmL999,999,999') "연봉",
+    to_char(hire_date, 'yyyy"년" mm"월" dd"일"') "입사일"
+from employee;
+
+-- to_number(char, format_char) : number 리턴
+-- 그룹핑처리된 숫자를 순수 숫자로 변환해서 연산처리
+select
+    to_number('￦8,000,000', 'L999,999,999') + 1000 "금액을 숫자로",
+    '1000' + '100' "숫자로 합연산",-- '+'는 숫자사이에만 가능
+    '1000' || '100' "문자로 합연산" -- '||'는 문자 연결연산에 사용
+from dual;
+
+-- to_date(char, format_char) : date 리턴
+select
+    to_date('1999년 3월 16일', 'yyyy"년" mm"월" dd"일"') 날짜,
+    extract(year from to_date('1955/01/01', ' yyyy/mm/dd')) "년도Y(1995)",
+    extract(year from to_date('1955/01/01', ' rrrr/mm/dd')) "년도R(1995)",
+    extract(year from to_date('55/01/01', 'yy/mm/dd')) 년도y, -- 현재년도 기준으로 100년(2000~2099)
+    extract(year from to_date('55/01/01', 'rr/mm/dd')) 년도r -- 현재년도 기준으로 100년(1950~2049)
+    -- 현재년도가 2055년이라면 RR은 2050~2149 내에서 판단
+from dual;
+
+-- 나이 구하기
+-- 450505(1945), 550505(1955), 070707(2007)
+-- yy, rr 둘 다 안됨.
+-- 주민번호 뒷자리의 첫번째 값을 근거로 1900 + 생년 2자리, 2000 + 생년 2자리
+select
+    extract(year from to_date('550505', 'yymmdd')) "YY 550505",
+    extract(year from to_date('070707', 'yymmdd')) "YY 070707",
+    
+    extract(year from to_date('450505', 'rrmmdd')) "RR 450505",
+    extract(year from to_date('550505', 'rrmmdd')) "RR 550505",
+    extract(year from to_date('070707', 'rrmmdd')) "RR 070707"
+from dual;
+
+-- 현재시각으로 부터  1일 2시간 3분 4초 뒤를 시각조회
+-- 년월일시분초 형태로 출력
+select
+    to_char(sysdate,'yy"년"mm"월"dd"일" hh24:mi:ss') "현재시각",
+    to_char(sysdate + 1 + (1/24 * 2) + (1/24/60 * 3) + (1/24/60/60 * 4), 'yy"년"mm"월"dd"일" hh24:mi:ss') "1일 2시간 3분 4초 뒤"
+from dual;
+
+-- 2022/08/29 남은 일수 구하기
+select
+    '수료일로부터 D-' || ceil(to_date('2022/08/29', 'yyyy/mm/dd') - sysdate) "남은일수"
+from dual;
+
+-- 기간(interval) 타입
+-- 1. interval year to month
+-- 2. interval day to second
+select
+    numtodsinterval(to_date('2022/08/29', 'yyyy/mm/dd') - sysdate, 'day') 기간,
+    extract(day from numtodsinterval(to_date('2022/08/29', 'yyyy/mm/dd') - sysdate, 'day')) 일,
+    extract(hour from numtodsinterval(to_date('2022/08/29', 'yyyy/mm/dd') - sysdate, 'day')) 시간,
+    extract(minute from numtodsinterval(to_date('2022/08/29', 'yyyy/mm/dd') - sysdate, 'day')) 분,
+    extract(second from numtodsinterval(to_date('2022/08/29', 'yyyy/mm/dd') - sysdate, 'day')) 초
+from dual;
+
+-- ++++++++++++++++++++++++++++++++++++++++++++++
+-- e. 기타 함수
+-- ++++++++++++++++++++++++++++++++++++++++++++++
+
+-- nvl(nullable값, null인 경우 사용값) : 값
+-- nvl2(nullable값, not null시 사용값,  null인경우 사용값) : 값
+select
+    emp_name,
+    bonus,
+    nvl2(bonus, '보너스 있음', '보너스 없음') 보너스여부
+from employee;
+
+-- 선택함수 decode
+-- decode(표현식, 값1, 결과값1, 값2, 결과값2, ... [, 기본결과값]) : 결과값
+-- job _code J1:대표, J2:부사장, J3:부장, J4:차장, J5:과장, J6:대리, J7:사원
+select
+    emp_name,
+    job_code,
+    decode(job_code, 'J1', '대표', 'J2', '부사장', 'J3', '부장', 'J4', '차장', 'J5', '과장', 'J6', '대리', 'J7', '사원') 직급명,
+    decode(job_code, 'J1', '대표', 'J2', '부사장', 'J3', '부장', 'J4', '차장', 'J5', '과장', 'J6', '대리', '사원') 직급명
+from employee;
+
+-- 사원테이블에서 이름, 주민번호, 성별(남/여)조회
+select
+    emp_name 이름,
+    emp_no 주민번호,
+    decode(substr(emp_no, 8, 1), 1, '남', 3, '남', '여') 성별
+from employee;
+
+-- 선택함수 case
+/*
+타입1 (조건절로 처리)
+    case
+        when 조건절1 then 결과값1
+        when 조건절2 then 결과값2
+        ...
+        [else 기본값]
+    end
+
+타입2(decode와 유사)
+    case 조건절
+        when 값1 then 결과값1
+        when 값2 then 결과값2
+        ...
+        [else 기본값]
+    end
+*/
+-- 타입1
+select
+    emp_name,
+    emp_no,
+    case
+        when substr(emp_no, 8, 1) = 1 then '남'
+        when substr(emp_no, 8, 1) = 3 then '남'
+        when substr(emp_no, 8, 1) in('2', '4') then '여' -- '' 씌워주는 게 좋음
+    end 성별,
+    case
+        when substr(emp_no, 8, 1) in('2', '4') then '여'
+        else '남'
+    end 성별
+from employee;
+
+-- 타입2
+select
+    emp_name,
+    emp_no,
+    case substr(emp_no, 8, 1)
+        when '1' then '남'
+        when '3' then '남'
+        when '2' then '여'
+        when '4' then '여'
+    end 성별,
+     case substr(emp_no, 8, 1)
+        when '1' then '남'
+        when '3' then '남'
+        else '여'
+    end 성별
+from employee;
+
+-- 사원테이블에서 생일조회
+select
+    emp_name,
+    emp_no,
+    to_char(to_date(substr(emp_no, 1, 6), 'yymmdd'), 'yyyy-mm-dd') "YY생일",
+    to_char(to_date(substr(emp_no, 1, 6), 'rrmmdd'), 'rrrr-mm-dd') "RR생일",
+    decode(substr(emp_no, 8, 1), '1', 1900, '2', 1900, 2000) + substr(emp_no, 1, 2) 출생년도,
+    to_char(to_date(decode(substr(emp_no, 8, 1), '1', 1900, '2', 1900, 2000) + substr(emp_no, 1, 2) 
+        || substr(emp_no, 3, 4), 'yyyymmdd'), 'yyyy-mm-dd') 생일
+from employee;
+
+-------------------------------------------------
+-- 2. 그룹처리 함수
+-------------------------------------------------
+-- 그룹단위로 처리되는 함수
+-- group by지정이 없다면 전체행을 하나의 그룹으로 처리
+-- 일반 컬럼과 혼용하여 사용불가
+
+-- sum(컬럼) : 총합 리턴
+select
+--    emp_name, -- 일반컬럼 혼용으로 오류!
+    sum(salary),
+    trunc(avg(salary))
+from employee;
+
+-- 컬럼값이 null인 경우, 그룹함수에서 제외됨
+select
+    sum(bonus)
+from employee;
+
+-- 실급여 합계구하기(가상컬럼)
+select
+    sum(salary + (salary * nvl(bonus, 0)))
+from employee;
+
+-- count(컬럼) : 해당 컬럼의 null이 아닌 행 수를 리턴
+select
+    count(bonus),
+    count(dept_code),
+    count(*) "전체 행 수"-- *는 한 행을 의미, 행이 존재하면 카운팅
+from employee;
+
+-- 전체에서 보너스가 null이 아닌 행 수
+select count(*)
+from employee
+where bonus is not null;
+
+-- sum을 이용해 bonus 받는 사원 조회
+select
+    sum(
+        case
+            when bonus is null then 0
+            when bonus is not null then 1
+        end
+    ) "보너스받는 사원",
+    count(bonus)
+from employee;
+
+-- max/min
+-- 숫자, 날짜, 문자열(사전등재순)
+select
+    max(salary),
+    min(salary),
+    max(hire_date),
+    min(hire_date),
+    max(emp_name),
+    min(emp_name)
+from employee;
+
+-- 1. 남자사원의 급여총합 조회
+select
+    to_char(sum(salary), 'fmL999,999,999') "남사원 급여합"
+from employee
+where substr(emp_no, 8, 1) in ('1', '3');
+
+-- 2. 부서코드가 D5인 사원들의 보너스 총합 조회
+select to_char(sum(salary * nvl(bonus, 0)), 'fmL999,999,999') 보너스금액합
+from employee
+where dept_code = 'D5';
+
+-- 3. 남/여 사원의 급여총합/평균 조회
+select
+    to_char(sum(
+        case
+            when decode(substr(emp_no, 8, 1), '1', '남', '3', '남', '여') = '남' then salary
+            else 0
+        end
+    ), 'fmL999,999,999') "남사원급여합",
+     to_char(sum(
+        case
+            when decode(substr(emp_no, 8, 1), '1', '남', '3', '남', '여') = '여' then salary
+            else 0
+        end
+    ), 'fmL999,999,999') "여사원급여합",
+    to_char(avg(
+        case
+            when decode(substr(emp_no, 8, 1), '1', '남', '3', '남', '여') = '남' then salary
+            else null
+        end
+    ), 'fmL999,999,999')"남사원급여평균",
+    to_char(avg(
+        case
+            when decode(substr(emp_no, 8, 1), '1', '남', '3', '남', '여') = '여' then salary
+            else null
+        end
+    ), 'fmL999,999,999')"여사원급여평균"
+    
+from employee;
+
+-- 4. 전사원의 보너스율 평균을 소수점 둘째자리까지 반올림처리하여 출력
+select
+    round(avg(nvl(bonus, 0)),2) "전사원 보너스율 평균"
+from employee;
+
+
+-- ====================================================
+-- DQL2
+-- ====================================================
+-------------------------------------------------------
+-- GROUP BY
+-------------------------------------------------------
+-- 별도의 그룹지정이 없다면 그룹함수는 전체를 하나의 그룹으로 간주
+-- 세부적 그룹지정을 group by절을 이용할 수 있다.
+
+-- 부서별 급여 평균
+select
+    dept_code,
+    avg(salary)
+from employee
+group by
+    dept_code
+order by dept_code;
+
+-- 부서별 사원수를 조회
+select
+    nvl(dept_code, '인턴') 부서,
+    count(*) 사원수
+from employee
+group by dept_code
+order by 1;
+
+-- 성별 사원수 조회
+-- 가상컬럼을 기준으로 그룹핑 가능
+select
+    employee.*, --모든 컬럼을 쓰고싶다면 테이블명.* 으로 작성
+    decode(substr(emp_no, 8, 1), '1', '남', '3', '남', '여') 성별
+from employee;
+
+select
+    decode(substr(emp_no, 8, 1), '1', '남', '3', '남', '여') 성별,
+    count(*) 사원수
+from employee
+group by decode(substr(emp_no, 8, 1), '1', '남', '3', '남', '여');
+
+-- 부서별 직급별 인원수
+select
+    dept_code,
+    job_code,
+    count(*)
+from employee
+group by dept_code, job_code
+order by 1, 2;
+
+-- 부서별 성별 인원수
+select
+    nvl(dept_code, '인턴') 부서,
+    decode(substr(emp_no, 8, 1), '1', '남', '3', '남', '여') 성별,
+    count(*)
+from employee
+group by
+    dept_code,
+    decode(substr(emp_no, 8, 1), '1', '남', '3', '남', '여')
+order by 1, 2;
+
+-------------------------------------------------------
+-- HAVING
+-------------------------------------------------------
+-- grouping한 결과행에 대해 조건절을 작성
+
+-- 부서별 급여평균이 300만원 이상인 부서들만 조회(부서명, 급여평균)
+select
+    dept_code,
+    avg(salary)
+from employee
+group by dept_code
+having avg(salary) >= 3000000;
+
+-- 직급별 인원수가 3명이상인 직급의 정보를 조회(직급코드, 인원수, 급여평균)
+select
+    job_code 직급코드,
+    count(*) 인원수,
+    trunc(avg(salary)) 급여평균
+from employee
+group by job_code
+having count(*) >= 3
+order by 1;
+
+-- 사원테이블에서 J2직급을 제외하고 직급별 인원수가 3명이상인 직급의 정보를 조회(직급코드, 인원수, 급여평균)
+-- 방법1. where절 사용
+select
+    job_code 직급코드,
+    count(*) 인원수,
+    trunc(avg(salary)) 급여평균
+from employee
+where job_code != 'J2'
+group by job_code
+having count(*) >= 3
+order by 1;
+-- 방법2. having절 사용
+select
+    job_code 직급코드,
+    count(*) 인원수,
+    trunc(avg(salary)) 급여평균
+from employee
+group by job_code
+having job_code != 'J2' and count(*) >= 3
+order by 1;
