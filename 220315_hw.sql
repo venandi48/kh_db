@@ -44,6 +44,6 @@ select * from tbl_files;
 */
 
 select
-    fileno,
-    substr(filepath, instr(filepath, '\' , -1) + 1)
+    fileno 파일번호,
+    substr(filepath, instr(filepath, '\' , -1) + 1) 파일명
 from tbl_files;
