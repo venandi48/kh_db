@@ -39,6 +39,7 @@ from employee;
 select
     emp_name 직원명,
     substr(emp_no, 1, 2) + 1900 생년,
+--    extract(year from to_date(substr(emp_no,1,2),'rr')) as 년생, --강사님 답안
     nvl(bonus, 0) 보너스
 from employee
 where substr(emp_no, 1, 1) = '6';
@@ -54,6 +55,7 @@ where substr(emp_no, 1, 1) = '6';
 */
 select count(*) || '명' "인원"
 from employee
+--where not phone like '010%'; -- 강사님 답안
 where substr(phone, 1, 3) != '010';
 
 -- ==================================================
@@ -110,7 +112,7 @@ from employee;
    사번 사원명 부서코드 입사일
 */
 select
-    emp_no 사번,
+    emp_id 사번,
     emp_name 사원명,
     dept_code 부서코드,
     hire_date 입사일
@@ -129,7 +131,9 @@ where
 select
     emp_name 직원명,
     hire_date 입사일,
-    trunc(sysdate - hire_date) 근무일수
+    quit_date, -- 강사님 답안
+    trunc(nvl(quit_date, sysdate) - hire_date) as 근무일수 -- 강사님 답안
+--    , trunc(sysdate - hire_date) 근무일수
 from employee;
 
 
@@ -153,6 +157,23 @@ select
     )/365) 만나이
 from employee;
 
+-- 한국나이 : 현재년도 - 출생년도 + 1
+-- 만나이 : 생일기준 + 1
+-- to_date(yyyymmdd) 일 경우 포맷생략가능
+select
+    emp_name 직원명,
+    dept_code 부서코드,
+    to_char(to_date
+        (decode(substr(emp_no, 8, 1), '1', 1900, '2', 1900, 2000) + substr(emp_no, 1, 2) || substr(emp_no, 3, 4)
+    ,'yyyymmdd'), 'yyyy"년" mm"월" dd"일"') 생년월일,
+    (extract(year from sysdate)) - (decode(substr(emp_no, 8, 1), '1', 1900, '2', 1900, 2000) + substr(emp_no, 1, 2)) + 1 한국나이,
+    trunc((sysdate -
+        to_date(decode(substr(emp_no, 8, 1), '1', 1900, '2', 1900, 2000) + substr(emp_no, 1, 2) || substr(emp_no, 3, 4),'yyyymmdd')
+    )/365) 만나이
+    -- 강사님 답안 방법2
+--    trunc(months_between(sysdate, to_date((decode(substr(emp_no,8,1),'1',1900,'2',1900,2000)+substr(emp_no,1,2)) || substr(emp_no,3,4)))/12) 나이
+from employee;
+
 
 -- ==================================================
 -- #11번
@@ -167,6 +188,8 @@ from employee;
     -------------------------------------------------------------------------
 */
 select
+--    sum(decode(extract(year from hire_date),1998,1)) as "1998년" -- 강사님 답안
+--    count(decode(extract(year from hire_date),1998,100)) as "1998년" -- 강사님 답안, count도 가능
     nvl(sum(decode(substr(hire_date, 1, 2), '98', 1)), 0) "1998년",
     nvl(sum(decode(substr(hire_date, 1, 2), '99', 1)),0) "1999년",
     nvl(sum(decode(substr(hire_date, 1, 2), '00', 1)), 0) "2000년",
@@ -175,7 +198,17 @@ select
     nvl(sum(decode(substr(hire_date, 1, 2), '03', 1)), 0) "2003년",
     nvl(sum(decode(substr(hire_date, 1, 2), '04', 1)), 0) "2004년",
     count(*) 전체직원수
-from employee;
+from employee
+where quit_yn = 'N'; -- 강사님 답안
+
+select
+    extract(year from hire_date) 입사년도,
+    count(*) 인원수
+from employee
+where quit_yn = 'N'
+group by extract(year from hire_date)
+having extract(year from hire_date) in (1998, 1999, 2000, 2001, 2002, 2003, 2004)
+order by 1;
 
 
 -- ==================================================
@@ -211,3 +244,12 @@ select
 from employee
 group by manager_id
 having count(manager_id) >= 2;
+
+-- 방법2
+select
+    manager_id "관리자 사원ID",
+    count(*) "관리 사원 수"
+from employee
+where manager_id is not null
+group by manager_id
+having count(*) >= 2;

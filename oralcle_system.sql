@@ -30,3 +30,15 @@ grant connect, resource to kh;
 
 -- tablespace users에 사용량 무제한으로 설정
 alter user kh quota unlimited on users;
+
+
+-- 실습문제용 계정 chun
+alter session set "_oracle_script" = true;
+
+create user chun
+identified by chun
+default tablespace users;
+
+alter user chun quota unlimited on users;
+
+grant connect, resource to chun;

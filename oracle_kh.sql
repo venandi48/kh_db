@@ -1003,3 +1003,323 @@ from employee
 group by job_code
 having job_code != 'J2' and count(*) >= 3
 order by 1;
+
+-- 소계를 처리하는 rollup
+select
+    nvl(job_code, '소계'),
+    count(*)
+from employee
+group by
+    rollup(job_code)
+order by job_code;
+
+select
+    dept_code,
+    grouping(dept_code) is_Rollup, -- 0이면 실제데이터, 1이면 rollup에 의해 생성된 데이터
+    decode(grouping(dept_code), 0, nvl(dept_code, '인턴'), 1, '총계') "dept_code",
+    count(*)
+from employee
+group by
+    rollup(dept_code)
+order by dept_code;
+
+select
+    decode(grouping(dept_code), 0, nvl(dept_code, '인턴'), 1, '총계') dept_code,
+    decode(grouping(job_code), 0, job_code, 1, '소계') job_code,
+    count(*)
+from employee
+group by
+    rollup(dept_code, job_code)
+order by
+    dept_code, job_code;
+
+
+-- ====================================================
+-- JOIN
+-- ====================================================
+-- 정규화된 테이블과 테이블을 합쳐서 가상테이블(Relation)을 생성
+
+-- join : 특정컬럼을 기준으로 행과 행을 연결(가로)
+-- union : 동일한 컬럼을 가진 테이블 연결(세로)
+
+-- join의 종류
+/*
+    1. Equi Join        : 동등조건(=)에 의해 연결 (대부분의 조인)
+        - inner join(내부조인)
+        - outer join(외부조인)
+        - cross join
+        - self join -- 이런게 있다~
+        - multiple join -- 이런게 있다~
+    2. Non-Equi Join    : 동등조건(=)이 아닌 조건(between and, in, not in ..)에 의해 연결
+*/
+
+-- join 문법
+-- 1. ANSI 표준문법 : join, on  키워드 사용
+-- 2. Oracle 전용문법
+
+-- 송종기 사원의 부서명을 조회
+-- 방법1.
+-- 1. employee테이블에서 사원명이 송종기인 행의 dept_code 조회
+-- 2. department테이블에서 해당 dept_code로 dept_title 조회
+select dept_code
+from employee
+where emp_name = '송종기';
+
+select dept_title
+from department
+where dept_id = 'D9';
+
+-- 방법2
+-- 조인으로 처리
+select
+    department.dept_title
+from
+    employee join department
+        on employee.dept_code = department.dept_id
+where
+    employee.emp_name = '송종기';
+
+-- 테이블 별칭 : as 사용불가
+select
+    d.dept_title
+from
+    employee e join department d
+        on e.dept_code = d.dept_id
+where
+    e.emp_name = '송종기';
+
+-------------------------------------------------------
+-- EQUI JOIN
+-------------------------------------------------------
+-- ++++++++++++++++++++++++++++++++++++++++++++++++++++
+-- INNER JOIN
+-- ++++++++++++++++++++++++++++++++++++++++++++++++++++
+-- 내부 조인(교집합)
+-- 왼쪽/오른쪽테이블의 일치하는 행만 조회
+-- 기준컬럼이 null이면 제외, 상대테이블에서 매칭되는 행이 없으면 제외
+-- inner 키워드 생략가능
+
+-- employee에서 dept_code가 null인 사원 2행 제외
+-- department에서 employee에 참조되지 않은 D3, D4, D7 3행 제외
+select *
+from
+    employee e inner join department d
+        on e.dept_code = d.dept_id; -- 22
+
+
+-- ++++++++++++++++++++++++++++++++++++++++++++++++++++
+-- OUTER JOIN
+-- ++++++++++++++++++++++++++++++++++++++++++++++++++++
+-- 외부조인 left outer join, right outer join
+-- outer키워드 생략가능
+
+-- 1. left outer join
+-- 왼쪽테이블의 모든 행 포함, 오른쪽테이블은 조인조건을 만족하는 행만 포함.
+-- 우측테이블에 매칭되는 행이 없다면 모두 null로 채워서 처리
+select *
+from
+    employee e left outer join department d
+        on e.dept_code = d.dept_id; -- 24(=22+2)행
+
+-- 2. right outer join
+select *
+from
+    employee e right outer join department d
+        on e.dept_code = d.dept_id; -- 25(=22+3)행
+
+-- 3. full outer join
+select *
+from
+    employee e full outer join department d
+        on e.dept_code = d.dept_id; -- 27(=22+2+3)행
+
+-- 사원명, 직급명(job.job_name)
+-- employee.job_code ---- job.job_code
+-- 1. 기준컬럼 null이면 제외 > 해당없음
+-- 2. 상대테이블에서 매칭되는 행이 없으면 제외 > 해당없음
+-- inner join, left/right outer join 모두 동일한 조회 결과
+-- inner join이 더 효율적이기때문에 이 경우 inner join 사용
+-- 동일한 컬럼명을 사용하는 경우, 테이블명이나 별칭을 필수로 사용
+select
+    e.emp_name,
+    e.job_code,
+    j.job_name
+from employee e join job j
+    on e.job_code = j.job_code; 
+
+-- 테이블 별칭 : 가급적 명시하여 사용하는 습관 들이기
+select *
+from
+    employee join department
+        on dept_code = dept_id; -- 컬럼명이 다르기때문에 테이블명 없이도 정상 조회
+
+select
+    e.emp_name,
+    j.job_name
+from employee join job
+    on job_code = job_code; -- 어느 테이블의 컬럼인지 알 수 없어서 오류 발생
+
+-- 동일한 컬럼명을 사용하는 경우, on조건절 대신 using절 사용가능
+-- using절로 사용한 컬럼은 별칭으로 접근불가
+select
+    *
+--    e.* -- 오류
+from
+    employee e join job j
+        using(job_code);
+
+
+-- ++++++++++++++++++++++++++++++++++++++++++++++++++++
+-- CROSS JOIN
+-- ++++++++++++++++++++++++++++++++++++++++++++++++++++
+-- 상호조인
+-- Cartesian Product(카테시안곱) - 모든 경우의 수
+-- 좌우측테이블이 상대테이블의 행과 만날 수 있는 모든 경우의 수
+select *
+from
+    employee e cross join department d; -- 216(=24*9)행
+
+-- 평균급여와 각 사원의 급여차
+select
+    emp_name,
+    salary - avg(salary) -- 오류! 그룹함수는 일반컬럼과 쓸 수 없다
+from
+    employee;
+
+select
+    emp_name,
+    salary,
+    salary - avg_sal
+from
+    employee e cross join (select trunc(avg(salary)) avg_sal from employee);
+
+-- 사원정보 조회(사원명, 부서코드, 급여, 부서별 평균급여)
+select
+    emp_name,
+    nvl(e.dept_code, '인턴') dept_code,
+    to_char(e.salary, 'fmL999,999,999') salary,
+    to_char("부서별 평균급여", 'fmL999,999,999') "부서별 평균급여"
+from
+    employee e left join (select
+                                trunc(avg(salary)) "부서별 평균급여", dept_code
+                            from employee
+                            group by dept_code) tmp
+        on nvl(e.dept_code, 'D0') = nvl(tmp.dept_code,'D0')
+order by e.dept_code;
+
+
+-- ++++++++++++++++++++++++++++++++++++++++++++++++++++
+-- SELF JOIN
+-- ++++++++++++++++++++++++++++++++++++++++++++++++++++
+-- 같은 테이블을 연결하는 조인
+
+-- 사원명, 관리자명을 조회
+-- manager_id가 null인 사원, 관리자가 아닌 사원은 제외
+select
+    e1.emp_id 사원번호,
+    e1.emp_name 사원명,
+    e1.manager_id 관리자번호,
+--    e2.emp_id 관리자번호, -- 위와 동일
+    e2.emp_name 관리자명
+from
+    employee e1 left join employee e2
+        on e1.manager_id = e2.emp_id;
+
+
+-- ++++++++++++++++++++++++++++++++++++++++++++++++++++
+-- MULTIPLE JOIN
+-- ++++++++++++++++++++++++++++++++++++++++++++++++++++
+-- 여러 테이블을 조인
+
+select * from employee; -- dept_code
+select * from department; -- dept_id, location_id
+select * from location; --local_code, national_code
+select * from nation; -- national_code
+
+-- 사원명(employee.emp_name), 부서명(department.dept_title)
+-- , 지역명(location.local_name), 국가명(nation.national_name)
+select
+    e.emp_name,
+    d.dept_title,
+    l.local_name,
+    n.national_name
+from
+    employee e
+        join department d
+            on e.dept_code = d.dept_id
+        join location l
+            on d.location_id = l.local_code
+        join nation n
+            on l.national_code = n.national_code ;
+-- 인턴 포함
+-- left join으로 추가된 행이 누락되지 않도록 연속적으로 left join처리해야함
+-- join되는 순서가 중요
+select
+    e.emp_name,
+    d.dept_title,
+    l.local_name,
+    n.national_name
+from
+    employee e
+        left join department d
+            on e.dept_code = d.dept_id
+        left join location l
+            on d.location_id = l.local_code
+        left join nation n
+            on l.national_code = n.national_code ;
+
+-- 사원명(employee.emp_name), 직급명(job.job_name), 부서명(department.dept_title)
+-- , 지역명(location.local_name), 국가명(nation.national_name)
+select
+    e.emp_name,
+    j.job_name,
+    d.dept_title,
+    l.local_name,
+    n.national_name
+from
+    employee e
+        join job j
+            on e.job_code = j.job_code
+        left join department d
+            on e.dept_code = d.dept_id
+        left join location l
+            on d.location_id = l.local_code
+        left join nation n
+            on l.national_code = n.national_code ;
+
+-- 직급 대리, ASIA지역 근무 직원 조회(사번, 이름, 직급명, 부서명, 근무지역명, 급여)
+select
+    emp_id 사번,
+    emp_name 이름,
+    j.job_name 직급명,
+    d.dept_title 부서명,
+    l.local_name || n.national_name 근무지역명,
+    to_char(salary, 'fm999,999,999') 급여
+from
+    employee e
+        join job j
+            using(job_code)
+        left join department d
+             on e.dept_code = d.dept_id
+        left join location l
+            on d.location_id = l.local_code
+        left join nation n
+            on l.national_code = n.national_code 
+where
+    j.job_name = '대리' and l.local_name like 'ASIA%';
+
+-------------------------------------------------------
+-- NON-EQUI JOIN
+-------------------------------------------------------
+-- 동등비교(=)가 조인조건을 사용하는 경우
+select * from employee;
+select * from sal_grade;
+
+-- employee.salary를 통해 급여등급 조회하기
+select
+    e.emp_name,
+    e.salary,
+    s.*
+from
+    employee e join sal_grade s
+        on e.salary between s.min_sal and s.max_sal;
