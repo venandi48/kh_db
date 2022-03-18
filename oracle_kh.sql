@@ -1055,7 +1055,7 @@ order by
 
 -- join 문법
 -- 1. ANSI 표준문법 : join, on  키워드 사용
--- 2. Oracle 전용문법
+-- 2. Oracle 전용문법 : ,콤마 사용
 
 -- 송종기 사원의 부서명을 조회
 -- 방법1.
@@ -1105,6 +1105,11 @@ select *
 from
     employee e inner join department d
         on e.dept_code = d.dept_id; -- 22
+        
+-- [oracle 전용]
+select *
+from employee e, department d
+where e.dept_code = d.dept_id;
 
 
 -- ++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -1121,17 +1126,35 @@ from
     employee e left outer join department d
         on e.dept_code = d.dept_id; -- 24(=22+2)행
 
+-- [oracle 전용]
+-- 외부조인 (+)를 상대테이블 컬럼에 추가
+select *
+from
+    employee e, department d
+where
+    e.dept_code = d.dept_id(+);
+
 -- 2. right outer join
 select *
 from
     employee e right outer join department d
         on e.dept_code = d.dept_id; -- 25(=22+3)행
 
+-- [oracle 전용]
+select *
+from
+    employee e, department d
+where
+    e.dept_code(+) = d.dept_id;
+
 -- 3. full outer join
 select *
 from
     employee e full outer join department d
         on e.dept_code = d.dept_id; -- 27(=22+2+3)행
+
+-- [oracle 전용문법 없음]
+
 
 -- 사원명, 직급명(job.job_name)
 -- employee.job_code ---- job.job_code
@@ -1179,6 +1202,11 @@ select *
 from
     employee e cross join department d; -- 216(=24*9)행
 
+-- [oracle 전용]
+select *
+from employee e, department d;
+
+
 -- 평균급여와 각 사원의 급여차
 select
     emp_name,
@@ -1224,6 +1252,15 @@ select
 from
     employee e1 left join employee e2
         on e1.manager_id = e2.emp_id;
+
+-- [oracle 전용]
+select
+    e1.emp_id 사원번호,
+    e1.emp_name 사원명,
+    e1.manager_id 관리자번호,
+    e2.emp_name 관리자명
+from employee e1, employee e2
+where e1.manager_id = e2.emp_id(+);
 
 
 -- ++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -1287,6 +1324,16 @@ from
         left join nation n
             on l.national_code = n.national_code ;
 
+-- [oracle 전용]
+select *
+from
+    employee e, department d, location l, nation n
+where
+    e.dept_code = d.dept_id(+)
+    and d.location_id = l.local_code(+)
+    and l.national_code = n.national_code(+);
+
+
 -- 직급 대리, ASIA지역 근무 직원 조회(사번, 이름, 직급명, 부서명, 근무지역명, 급여)
 select
     emp_id 사번,
@@ -1308,10 +1355,27 @@ from
 where
     j.job_name = '대리' and l.local_name like 'ASIA%';
 
+-- [oracle 전용]
+select
+    emp_id 사번,
+    emp_name 이름,
+    j.job_name 직급명,
+    d.dept_title 부서명,
+    l.local_name || n.national_name 근무지역명,
+    to_char(salary, 'fm999,999,999') 급여
+from
+    employee e, department d, location l, nation n, job j
+where
+    e.job_code = j.job_code
+    and e.dept_code = d.dept_id(+)
+    and d.location_id = l.local_code(+)
+    and l.national_code = n.national_code(+)
+    and j.job_name = '대리' and l.local_name like 'ASIA%';
+
 -------------------------------------------------------
 -- NON-EQUI JOIN
 -------------------------------------------------------
--- 동등비교(=)가 조인조건을 사용하는 경우
+-- 동등비교(=)가 아닌 조인조건을 사용하는 경우
 select * from employee;
 select * from sal_grade;
 
@@ -1323,3 +1387,328 @@ select
 from
     employee e join sal_grade s
         on e.salary between s.min_sal and s.max_sal;
+
+-- [oracle 전용]
+select
+    e.emp_name,
+    e.salary,
+    s.*
+from employee e, sal_grade s
+where e.salary between s.min_sal and s.max_sal;
+
+
+
+-- ====================================================
+-- SET OPERATOR
+-- ====================================================
+-- 여러 결과집합을 세로로 연결 후 하나의 가상테이블 생성
+
+-- 조건
+-- 1. SELECT절의 컬럼수가 동일
+-- 2. SELECT절의 해당컬럼의 자료형이 상호호환 가능 (char-varcahr2 상호호환)
+-- 3. 컬럼명이 다른 경우, 첫번째 결과집합의 컬럼명 사용
+-- 4. ORDER BY절은 마지막 결과집합에 한번만 사용가능
+
+select
+    'a', 123, sysdate
+from
+    dual
+union
+select
+    'b', 456, sysdate
+from
+    dual
+order by 1 desc;
+
+-- 연산자 종류
+/*
+    1. union 합집합 - 두 결과집합을 합친 후 중복제거, 첫번째 컬럼기준 오름차순 정렬 
+    2. union all 합집합 - 두 결과집합을 모두 포함
+    3. intersect 교집합
+    4. minus 차집합
+*/
+
+-- 부서코드 D5인 사원 조회
+-- salary가 300만 이상인 사원 조회
+-- union all : 두개의 결과집합을 추가작업 없이 연결. 작업속도 빠름.
+-- union : 두개의 결과집합을 합친 후 중복된 행 제거, 첫번째 컬럼 기준 오름차순 정렬. 작업속도 느림
+select
+    emp_id
+    , emp_name
+    , dept_code
+    , salary
+from employee
+where dept_code = 'D5' -- 6행
+union
+select
+    emp_id
+    , emp_name
+    , dept_code
+    , salary
+from employee
+where salary >= 3000000; -- 9행
+
+-- intersect : 중복된 행만 출력, 모든 컬럼값이 같을 때 중복으로 취급.
+-- minus : 첫번째 결과집합에서 두번째 결과집합과의 중복된 행을 제거 후 출력 
+select
+    emp_id
+    , emp_name
+    , dept_code
+    , salary
+from employee
+where dept_code = 'D5' -- 6행
+minus
+select
+    emp_id
+    , emp_name
+    , dept_code
+    , salary
+from employee
+where salary >= 3000000; -- 9행
+
+
+
+-- 판매데이터 관리
+create table tb_sales(
+    p_name varchar2(50),
+    pcount number,
+    sale_date date
+);
+--drop table tb_sales;
+
+-- 두달전 판매 데이터
+insert into tb_sales values('버터링', 10, add_months(sysdate, -2));
+insert into tb_sales values('칸쵸', 15, add_months(sysdate, -2) + 1);
+insert into tb_sales values('와클', 10, add_months(sysdate, -2) + 2);
+insert into tb_sales values('버터링', 30, add_months(sysdate, -2) + 5);
+insert into tb_sales values('포카칩', 10, add_months(sysdate, -2) + 7);
+-- 한달전 판매 데이터
+insert into tb_sales values('스윙칩', 10, add_months(sysdate, -1));
+insert into tb_sales values('초코칩쿠키', 15, add_months(sysdate, -1) + 1);
+insert into tb_sales values('와클', 10, add_months(sysdate, -1) + 2);
+insert into tb_sales values('버터링', 20, add_months(sysdate, -1) + 5);
+insert into tb_sales values('포카칩', 30, add_months(sysdate, -1) + 7);
+insert into tb_sales values('와클', 10, add_months(sysdate, -1) + 10);
+-- 이번달 판매 데이터
+insert into tb_sales values('스윙칩', 10, sysdate - 10);
+insert into tb_sales values('초코칩쿠키', 22, sysdate - 9);
+insert into tb_sales values('와클', 10, sysdate - 7);
+insert into tb_sales values('버터링', 15, sysdate - 5);
+insert into tb_sales values('포카칩', 3, sysdate - 2);
+insert into tb_sales values('야채타임', 15, sysdate - 1);
+
+-- 테이블 확인
+select * from tb_sales;
+
+-- 2달 전의 판매내역 조회
+-- 1달후, 내년, 10년후에도 동일하게 2달 전을 조회
+select *
+from tb_sales
+where
+    to_char(add_months(sysdate, -2), 'yyyymm') = to_char(sale_date, 'yyyymm');
+
+-- 테이블쪼개기
+-- tb_sales에는 현재달의 판매데이터만 관리, 지난달데이터는 tb_sales_yyyymm테이블을 별도 생성 후 관리
+-- 두달전
+create table tb_sales_202201
+as
+select *
+from tb_sales
+where
+    to_char(add_months(sysdate, - 2), 'yyyymm') = to_char(sale_date, 'yyyymm');
+select * from tb_sales_202201; -- 조회
+-- 한달전
+create table tb_sales_202202
+as
+select *
+from tb_sales
+where
+    to_char(add_months(sysdate, - 1), 'yyyymm') = to_char(sale_date, 'yyyymm');
+select * from tb_sales_202202; -- 조회
+
+-- 기존 테이블에서 쪼개진 데이터 삭제
+--delete from tb_sales
+--where to_char(add_months(sysdate, - 2), 'yyyymm') = to_char(sale_date, 'yyyymm');
+--delete from tb_sales
+--where to_char(add_months(sysdate, - 1), 'yyyymm') = to_char(sale_date, 'yyyymm');
+
+select * from tb_sales;
+commit; -- f11 키로 대체가능
+
+-- 지난 3개월 판매내역 데이터를 조회
+select *
+from tb_sales_202201
+union
+select *
+from tb_sales_202202
+union
+select *
+from tb_sales;
+
+-- 지난 3개월의 제품별 판매량 조회
+select
+    p_name 제품명,
+    sum(pcount) 판매량
+from (
+        select *
+        from tb_sales_202201
+        union
+        select *
+        from tb_sales_202202
+        union
+        select *
+        from tb_sales
+    )
+group by p_name
+order by 2 desc; -- 많이 팔린 순
+
+
+
+-- ====================================================
+-- SUB QUERY
+-- ====================================================
+-- 하나의 SQL문 안에 포함된 또 하나의 SQL문
+-- main query하위에 subquery가 포함되어 있음
+-- main query실행 도중 subquery 실행하고, 그 결과를 main query에 전달
+
+-- 유의사항
+-- 1. subquery는 반드시 소괄호로 묶여야 한다.
+-- 2. 비교연산 시 우항에 작성할 것.
+-- 3. order by 문법 지원하지 않음.
+
+-- 서브쿼리의 유형
+/*
+    1. 단일행 단일컬럼 (1행 1열)
+    2. 다중행 단일컬럼 (n행 1열)
+    3. 다중열(단일행/다중행) (n행 m열)
+    4. 상관 - 메인쿼리에서 값을 전달받아 처리
+    5. 스칼라 - select절에 사용된 단일값 상관서브쿼리
+    6. 인라인뷰 - from절에 사용된 서브쿼리
+*/
+
+
+-- 노옹철 사원의 관리자이름을 조회
+
+-- 방법1
+-- step1. 관리자 아이디 조회
+select manager_id
+from employee
+where emp_name = '노옹철';
+-- step2. 관리자 아이디의 사원정보 조회
+select emp_name
+from employee
+where emp_id = '201';
+
+-- 방법2
+select emp_name
+from employee
+where emp_id = (
+            select manager_id
+            from employee
+            where emp_name = '노옹철');
+
+
+-------------------------------------------------------
+-- 단일행 단일컬럼 서브쿼리
+-------------------------------------------------------
+-- 서브쿼리 조회결과가 1행 1열인 경우
+
+-- 전 직원의 평균 급여보다 많은 급여를 받는 사원 조회(사번, 이름, 직급코드, 급여)
+select
+    emp_id,
+    emp_name,
+    dept_code,
+    salary,
+    trunc((select avg(salary) from employee)) 평균급여
+from employee
+where
+    salary > (select avg(salary) from employee);
+
+-- 윤은해와 같은 금액의 급여를 받는 사원을 조회(사번 사원명 급여)
+select emp_id, emp_name, salary
+from employee
+where
+    salary = (select salary from employee where emp_name = '윤은해')
+    and emp_name != '윤은해';
+
+-- 사원테이블에서 급여가 최대/최소인 사원 조회(사번 사원명 급여)
+select emp_id, emp_name, salary
+from employee
+where
+    salary in ((select max(salary) from employee), (select min(salary) from employee));
+
+-------------------------------------------------------
+-- 다중행 단일컬럼 서브쿼리
+-------------------------------------------------------
+-- 서브쿼리 조회결과가 1열n행일 때 서브쿼리
+-- in | not in, any(some), all, exists | not exists 연산자와 함께 사용가능
+
+-- in : 값목록에 포함되어있는지 검사
+-- in(값1, 값2, 값3 ...) - 인자위치에 다중행 서브쿼리를 넣어 사용가능
+
+-- 송중기 하이유 사원이 속한 부서원 조회
+select
+    emp_name,
+    dept_code
+from employee
+where
+    dept_code in (
+                select
+                    dept_code
+                from employee
+                where emp_name in ('송종기', '하이유'));
+
+-- 차태연, 박나라, 이오리사원과 같은 직급 사원 조회 (사원명, 직급명(직급코드))
+select
+    emp_name 사원명,
+    job_name || '(' || job_code || ')' "직급명(직급코드)"
+from employee e join job j
+    using(job_code)
+where
+    job_code in (
+                select job_code
+                from employee
+                where
+                    emp_name in ('차태연', '박나라', '이오리') );
+
+-------------------------------------------------------
+-- 다중열 서브쿼리
+-------------------------------------------------------
+-- 서브쿼리의 결과가 n열 m행(1행이상)인 경우
+
+-- 퇴사한 직원과 같은 부서, 같은 직급에 해당하는 사원 조회(이름, 직급코드, 부서코드)
+-- = 연산자인 경우 서브쿼리 리턴결과가 딱 1행일 때만 처리 할 수 있다.
+-- in 연산자인 경우 서브쿼리 리턴결과 1~n행 일때 처리 할 수 있다.
+select
+    emp_name, job_code, dept_code
+from employee
+where (dept_code, job_code) in (
+            select
+                dept_code, job_code
+            from employee
+            where quit_yn = 'Y'
+        );
+
+select * from employee;
+-- 퇴사처리
+update employee
+set
+    quit_date = sysdate,
+    quit_yn = 'Y'
+where
+    emp_id = '221';
+
+
+-- 직급별 최소 급여를 받는 사원 조회 (이름, 직급코드, 급여)
+select
+    emp_name 이름, 
+    job_code 직급코드,
+    salary 급여
+from employee
+where
+    (job_code, salary) in (
+        select job_code, min(salary)
+        from employee
+        group by job_code)
+order by job_code;
+

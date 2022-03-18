@@ -30,9 +30,8 @@ where
 select
     emp_id 사번,
     emp_name 사원명,
-    trunc((sysdate - 
-        to_date(decode(substr(emp_no, 8, 1), '1', 1900, '2', 1900, 2000 ) + substr(emp_no, 1, 2)
-        || substr(emp_no,3, 4),'yyyymmdd'))/365) 나이,
+    extract(year from sysdate) -
+        (decode(substr(emp_no,8,1),'1',1900,'2',1900,2000)) - substr(emp_no,1,2) + 1 나이,
     d.dept_title 부서명,
     j.job_name 직급명
 from
@@ -43,15 +42,27 @@ from
             on e.job_code = j.job_code
         cross join (
                 select 
-                    trunc(min(sysdate - 
-                    to_date(decode(substr(emp_no, 8, 1), '1', 1900, '2', 1900, 2000 ) + substr(emp_no, 1, 2)
-                    || substr(emp_no,3, 4),'yyyymmdd'))/365) min_age
+                    min(extract(year from sysdate) -
+                    (decode(substr(emp_no,8,1),'1',1900,'2',1900,2000)) - substr(emp_no,1,2) + 1) min_age
                 from employee
             )tb_min_age
 where tb_min_age.min_age
-        = trunc((sysdate - 
-            to_date(decode(substr(emp_no, 8, 1), '1', 1900, '2', 1900, 2000 ) + substr(emp_no, 1, 2)
-            || substr(emp_no,3, 4),'yyyymmdd'))/365);
+        = extract(year from sysdate) -
+        (decode(substr(emp_no,8,1),'1',1900,'2',1900,2000)) - substr(emp_no,1,2) + 1;
+-- 방법2
+select emp_id 사번,
+    emp_name 사원명,
+    extract(year from sysdate)-(decode(substr(emp_no,8,1),'1',1900,'2',1900,2000))-substr(emp_no,1,2) + 1 as 나이,
+    dept_title 부서명,
+    job_name 직급명
+from employee e
+    join department
+        on (dept_code = dept_id)
+    join job j
+        on (e.job_code = j.job_code)
+where
+    extract (year from sysdate) - (decode(substr(emp_no,8,1),'1',1900,'2',1900,2000)) - substr(emp_no,1,2) + 1 =
+        (select min(extract(year from sysdate) - (decode(substr(emp_no,8,1),'1',1900,'2',1900,2000)) - substr(emp_no,1,2)+1) from employee);
 
 
 -- #4번
@@ -77,7 +88,7 @@ from employee e
         on e.job_code = j.job_code
     left join department d
         on e.dept_code = d.dept_id
-where d.dept_title like '해외영업_부';
+where d.dept_title like '해외영업%';
 
 
 -- #6번
@@ -105,9 +116,9 @@ select
 from employee e
     join job j
         on e.job_code = j.job_code
-    left join department d
+    join department d
         on e.dept_code = d.dept_id
-    left join location l
+    join location l
         on d.location_id = l.local_code
 where e.dept_code = 'D2';
     
@@ -125,7 +136,7 @@ from employee e
     join job j
         on e.job_code = j.job_code
     join sal_grade s
-        on e.sal_level = s.sal_level
+        using(sal_level)
 where e.salary > s.max_sal;
 
 
@@ -152,12 +163,15 @@ where l.national_code in ('KO', 'JP');
 -- self join 사용
 select 
     e1.emp_name 사원명,
-    e1.dept_code 부서코드,
+--    e1.dept_code 부서코드,
+    d.dept_title 부서명,
     e2.emp_name 동료이름
 from employee e1 join employee e2
     on e1.dept_code = e2.dept_code
+    left join department d
+        on e1.dept_code = d.dept_id
 where e1.emp_name != e2.emp_name
-order by e1.dept_code, e1.emp_name;
+order by e1.emp_name;
 
 
 -- #11번
@@ -181,3 +195,8 @@ select
 from employee
 group by
     rollup(nvl2(quit_date, '재직자', '퇴사자'));
+-- 강사님답안
+select decode(quit_yn,'N','재직','퇴사') 재직여부
+     , count(*) 인원수
+from employee
+group by quit_yn;
