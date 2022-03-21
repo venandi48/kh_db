@@ -1711,4 +1711,3 @@ where
         from employee
         group by job_code)
 order by job_code;
-

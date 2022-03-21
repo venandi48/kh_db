@@ -55,6 +55,26 @@ from
             on d.department_no = tb_count.department_no
 order by d.department_name;
 
+-- 강사님 답안
+select decode(grouping(department_name),0,nvl(department_name,'미지정'),1,'총계') 학과명
+       , decode(grouping(professor_name),0,professor_name,1,count(*)) 교수명  
+from tb_professor p 
+    left join tb_department d using(department_no)
+group by rollup(department_name, professor_name )
+order by d.department_name;
+
+-- 다시 풀어보기
+select
+    decode(grouping(department_name), 0, nvl(department_name, '소속없음'), 1, '총계') 학과,
+    decode(grouping(professor_name), 0, professor_name, 1, count(*)) 교수
+from
+    tb_department d
+        right join tb_professor p
+            using(department_no)
+group by
+    rollup(department_name, professor_name)
+order by department_name
+;
 
 -- #3번
 -- 이름이 [~람]인 학생의 평균학점을 구해서 학생명과 평균학점(반올림해서 소수점둘째자리까지)과 같이 출력.
@@ -73,6 +93,14 @@ from
         on s.student_no = tb_avg.avg_student_no
 where s.student_name like '%람'
 order by s.student_name;
+
+-- 강사님 답안
+select
+    student_name 학생명,
+    round(avg(point),2) 평균학점
+from tb_student s join tb_grade g using(student_no)
+where student_name like '%람' 
+group by student_no, student_name;
 
 
 -- #4번

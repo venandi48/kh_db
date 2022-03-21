@@ -24,6 +24,19 @@ where
         group by dept_code
         );
 
+-- 강사님 답안
+select emp_name, dept_title, salary
+from
+    employee left join department
+        on dept_code = dept_id
+where
+    (dept_code, salary) in (
+                    select
+                        dept_code, max(salary) 
+                    from employee
+                    group by dept_code)
+order by 2,1;
+
 
 -- #심화1
 -- 최소급여를 받는 사원도 출력.
@@ -45,6 +58,16 @@ where
 --    salary in (select max(salary) from employee group by dept_code)
 --    or salary in (select min(salary) from employee group by dept_code);
 
+-- 강사님 답안
+select emp_name, dept_title, salary
+from employee left join department on dept_code = dept_id
+where (dept_code, salary) in (select dept_code, max(salary) 
+                        from employee
+                        group by dept_code)
+    or (dept_code, salary) in (select dept_code, min(salary) 
+                        from employee
+                        group by dept_code)
+order by 2,1;
 
 
 -- #심화2
