@@ -1711,3 +1711,428 @@ where
         from employee
         group by job_code)
 order by job_code;
+
+
+-------------------------------------------------------
+-- 상관 서브쿼리
+-------------------------------------------------------
+-- 상관(상호연관)
+-- 메인쿼리의 값을 전달받아 서브쿼리를 수행하고, 그 결과값을 반환
+-- 일반서브쿼리와는 다르게 단독실행이 불가능
+
+-- 직급별 평균급여보다 많은 급여를 받는 사원 조회
+-- JOIN (직급별 평균급여 가상테이블) 사용
+select e.*, tmp.avg_sal_by_job
+from
+    employee e
+        join (select job_code, avg(salary) avg_sal_by_job
+                    from employee
+                    group by job_code) tmp
+            on e.job_code = tmp.job_code
+where e.salary > tmp.avg_sal_by_job;
+
+-- 상관 서브쿼리로 처리
+select
+    emp_name, job_code, salary
+from
+    employee e
+where
+    salary > (select avg(salary)
+                from employee
+                where job_code = e.job_code);
+
+-- 부서별  평균급여보다 많은 급여를 받는 사원 조회(인턴포함)
+select
+    e.emp_name,
+    nvl(e.dept_code, '인턴'),
+    e.salary
+--    , trunc((select avg(salary)
+--        from employee 
+--        where nvl(dept_code,'D0') = nvl(e.dept_code, 'D0'))) avg_sal -- 스칼라 서브쿼리 select 절의 상관 서브쿼리
+from employee e
+where salary > (select avg(salary)
+                from employee 
+                where nvl(dept_code,'D0') = nvl(e.dept_code, 'D0'));
+
+-- exists (sub-query)
+-- 서브쿼리의 결과집합이 1행 이상인 경우 true로 처리, 0행인 경우 false처리
+select *
+from employee
+where
+--    1 = 1; -- 무조건 true
+    1 = 0; -- 무조건 false
+
+select *
+from employee
+where 
+--    exists (select * from employee); -- 조회된 행이 있으므로 true 처리
+    exists (select * from employee where 1 = 0); -- 조회된 행이 없으므로 false 처리
+    
+
+-- 실제 부서원이 존재하는 부서만 조회
+select *
+from
+    department d
+where
+    exists (
+        select * 
+        from employee 
+        where dept_code = d.dept_id
+    );
+
+-- 실제 부서원이 존재하지 않는 부서만 조회
+-- 서브쿼리의 행이 존재하면 false, 서브쿼리의 행이 존재하지 않으면 true -> 결과집합에 포함
+select *
+from
+    department d
+where
+    not exists (
+        select 1 -- 실제 데이터는 중요하지 않기때문에 임의 값으로 처리 가능
+        from employee 
+        where dept_code = d.dept_id
+    );
+
+-- 관리자 사원 조회(부하직원이 manager_id가 관리 자 사원의 emp_id를 가리킨다)
+-- 관리자 emp_id가 부하직원의 manager_id로 참조되는 사원 조회
+select *
+from employee e
+where
+    exists (
+        select *
+        from employee
+        where manager_id = e.emp_id
+    );
+
+-- not exists 활용해 최대/최소에 해당하는 행 조회
+select *
+from employee e
+where
+    not exists (
+        select * 
+        from employee 
+        where salary > e.salary
+    ) -- 최고 급여 수령자 조회
+    or not exists (
+        select * 
+        from employee 
+        where salary < e.salary
+    ) -- 최저 급여 수령자 조회
+;
+
+-------------------------------------------------------
+-- SCALA 서브쿼리
+-------------------------------------------------------
+-- scala값은 단일값
+-- select 절에 사용하는 결과값이 하나(1행1열)인 상관서브쿼리
+
+-- 사번, 이름, 관리자사번, 관리자명
+-- self-join으로 처리
+select
+    e.emp_id 사번,
+    e.emp_name 이름,
+    e.manager_id 관리자사번,
+    m.emp_name 관리자명
+from
+    employee e left join employee m
+        on e.manager_id = m.emp_id ;
+
+-- 스칼라 서브쿼리로 처리
+select
+    emp_id,
+    emp_name,
+    manager_id,
+    (select emp_name from employee where emp_id = e.manager_id) manager_name
+from employee e;
+
+-- 사원명, 부서명, 급여, 부서별 평균급여 조회(scala서브쿼리)
+select
+    emp_name 사원명,
+    nvl((select dept_title from department where dept_id = e.dept_code),'인턴') 부서명,
+    salary 급여,
+    (
+        select trunc(avg(salary)) avg_sal
+        from employee
+        where nvl(dept_code, 'D0') = nvl(e.dept_code, 'D0')
+    ) "부서별 평균급여"
+from employee e;
+
+
+-------------------------------------------------------
+-- INLINE VIEW
+-------------------------------------------------------
+-- from 절에 사용한 subquery
+/*
+    view란?
+    실제테이블을 주어진 view를 통해 제한적으로 사용가능하도록 함.
+    1. inline view (1회용)
+    2. stored view - 별도의 객체로 저장해 재사용 가능
+*/
+
+-- 사원테이블에서 여사원의 사번, 사원명, 부서코드, 성별 조회
+-- 방법1.
+select
+    emp_id,
+    emp_name,
+    dept_code,
+    decode(substr(emp_no, 8, 1), '2', '여', '4', '여', '남') gender
+from employee
+where decode(substr(emp_no, 8, 1), '2', '여', '4', '여', '남') = '여';
+
+-- 방법2. 인라인뷰
+select
+    emp_id,
+    emp_name,
+    dept_code,
+    gender
+from(
+    select
+        e.*,
+        decode(substr(emp_no, 8, 1), '2', '여', '4', '여', '남') gender
+    from employee e
+)
+where gender = '여';
+
+-- 입사년도가 1990~1999년인 사원 조회(사번, 사원명, 입사년도)
+select
+    emp_id,
+    emp_name,
+    hire_year
+from(
+    select
+        e.*,
+        extract(year from hire_date) hire_year
+    from employee e
+)
+where hire_year between 1990 and 1999;
+
+-- 사원 중에 30/40대(30~49) 여자사원의 사번, 부서명, 성별, 나이를 조회 -- 이거 오류남 다시해보기
+select
+    emp_id,
+    nvl((
+        select dept_title
+        from department 
+        where e.dept_code = dept_id)
+    , '인턴') dept_title,
+    emp_name,
+    gender,
+    age
+from(
+    select
+        e.*,
+        decode(substr(emp_no, 8, 1), '2', '여', '4', '여', '남') gender,
+        (extract(year from sysdate) -
+            (decode(substr(emp_no, 8, 1), '1', 1900, '2', 1900, 2000) + substr(emp_no,1,2)) + 1
+        ) age
+    from employee e
+)
+where
+    gender = '여'
+    and age between 30 and 49;
+
+
+-- ====================================================
+-- 고급쿼리
+-- ====================================================
+-------------------------------------------------------
+-- TOP-N 분석
+-------------------------------------------------------
+-- 특정 컬럼 기준으로 정렬 후 에 가장 앞선 n개의 행ㄹ만 결과집합에 담아 리턴
+
+-- rownum
+-- 테이블생성 후 각 행이 insert될 때 oracle에서 자동으로 부여하는 각 행에 대한 일련번호
+-- 한번 부여되면 변경불가
+-- where절에 새로운 조건이 추가되었을때, inline-view를 사용했을때 새로 부여됨
+select
+    rownum,
+    e.*
+from employee e
+where dept_code in ('D5', 'D6');
+
+-- 회사에서 급여가 높은 TOP-5 조회
+-- 1. 급여내림차순 정렬
+-- 2. inline-view(rownum새로부여)
+-- 3. rownum 필터링
+select
+    rownum,
+    e.*
+from(
+    select emp_name, salary
+    from employee
+    order by salary desc
+) e
+where rownum between 1 and 5;
+
+-- 최근 입사한 순으로 5명 조회
+select
+    rownum,
+    e. *
+from(
+    select emp_name, hire_date
+    from employee
+    order by hire_date desc
+) e
+where rownum between 1 and 5;
+
+-- 직급이 대리인 사원중에서 연봉상위 3명 조회
+select 
+    rownum, e.*
+from(
+    select
+        emp_name,
+        j.job_name,
+        (salary + (salary * nvl(bonus, 0)))*12 연봉
+    from employee join job j
+        using(job_code)
+    where j.job_name = '대리'
+    order by 3 desc
+) e
+where rownum <= 3;
+
+
+-- 부서별 급여평균 top3 조회(부서명, 평균급여)
+select
+    (select dept_title from department d where d.dept_id = e.dept_code) 부서명,
+    e.avg_sal_by_dept 평균급여
+from (
+    select dept_code, trunc(avg(salary)) avg_sal_by_dept
+    from employee
+    group by dept_code
+    order by trunc(avg(salary)) desc
+) e
+where rownum <= 3;
+
+-- 급여 상위 랭킹 6 ~ 10위 조회
+-- rownum은 where절이 완전히 끝났을때 부여 또한 끝난다.
+-- 1부터 시작하지 않고 offset이 있는 경우 inline-view가 한 레벨 더 필요
+select *
+from(
+    select
+        rownum rnum, e.*
+    from(
+        select emp_name, salary
+        from employee
+        order by salary desc
+    ) e
+)
+where rnum between 6 and 10;
+
+-- whith절
+-- inlineview에 이름을 붙여서 재사용 가능하도록 만드는 구문
+
+-- 부서별 급여평균 top3 조회(부서명, 평균급여)
+with some_view
+as (
+    select dept_code, trunc(avg(salary)) avg_sal_by_dept
+    from employee
+    group by dept_code
+    order by trunc(avg(salary)) desc
+)
+select
+    (select dept_title from department d where d.dept_id = e.dept_code) 부서명,
+    e.avg_sal_by_dept 평균급여
+from ( some_view ) e
+where rownum <= 3;
+
+
+-------------------------------------------------------
+-- WINDOW FUNCTION
+-------------------------------------------------------
+-- 행과 행간의 관계를 쉽게 파악/정의하기위한 ANSI표준함수
+-- select절에서만 사용가능
+-- 순위관련처리, 집계관련처리, 순서관련처리, 비율/통계관리처리
+
+-- ++++++++++++++++++++++++++++++++++++++++++++++++++++
+-- 순위관련 윈도우함수
+-- ++++++++++++++++++++++++++++++++++++++++++++++++++++
+/*
+    window_function(args) over([partition by절][order by절][windowing절])
+    - args : 함수인자(컬럼명). 0~n개
+    - partition by 절 : 전체집합을 다시 그룹핑하기위한 구문
+    - order by 절 : 행간의 정렬
+    - windowing 절 : 대상행을 지정
+*/
+
+-- rank() over()
+-- 중복된 값이 있다면 중복된 만큼 건너뛰고 순위부여
+-- dense_rank() over()
+-- 중복된 값이 있어도 중복된 만큼 건너뛰지 않고 순위부여
+select
+    emp_name,
+    salary,
+    rank() over(order by salary desc) rank,
+    dense_rank() over(order by salary desc) rank
+from
+    employee;
+
+-- top-n분석에 활용
+select *
+from (
+    select
+        emp_name,
+        salary,
+        rank() over(order by salary desc) rank
+    from
+        employee
+)
+where rank between 1 and 5;
+
+-- 부서별 급여순위를 조회
+select
+    emp_name,
+    dept_code,
+    rank() over(partition by dept_code order by salary desc) rank_by_dept,
+    rank() over(order by salary desc) rank
+from employee
+order by dept_code;
+
+-- 부서별 입사순서 조회(사원명, 부서명, 입사일, 부서별입사순번)
+select
+    emp_name 사원명,
+    nvl((select dept_title from department d where e.dept_code = d.dept_id), '인턴') 부서명,
+    hire_date 입사일,
+    rank() over(partition by dept_code order by hire_date) 부서별입사순번,
+    dense_rank() over(partition by dept_code order by hire_date) rank,
+    row_number() over(partition by dept_code order by hire_date) rank
+from employee e
+order by dept_code;
+
+-- ++++++++++++++++++++++++++++++++++++++++++++++++++++
+-- 집계처리 윈도우함수
+-- ++++++++++++++++++++++++++++++++++++++++++++++++++++
+-- 집계/누계 관련 처리를 하는 윈도우 함수
+
+-- sum() over()
+-- 그룹함수와 일반컬럼은 같이 쓸 수 없지만, 윈도우함수 일반컬럼은 함께 사용가능.
+select
+    emp_name,
+    dept_code,
+    salary,
+    sum(salary) over() 전사원급여합,
+    trunc(salary / sum(salary) over() * 100, 1) "전체급여대비%",
+    sum(salary) over(partition by dept_code) 부서별급여합,
+    sum(salary) over(partition by dept_code order by salary) 부서별누계
+from employee;
+
+-- 판매테이블 지난 3개월 제품별 누계
+select
+    s.*,
+    sum(pcount) over(partition by p_name order by sale_date) "제품별 누계"
+from(
+    select * from tb_sales_202201
+    union all
+    select * from tb_sales_202202
+    union all
+    select * from tb_sales
+) s;
+
+-- 사원정보 조회(사번, 사원명, 부서코드, 급여, 부서별평균급여, 전체사원평균급여, 부서별인원)
+select
+    emp_id 사번,
+    emp_name 사원명,
+    nvl(dept_code, '인턴') 부서코드,
+    to_char(salary, 'fm999,999,999') 급여,
+    to_char(trunc(avg(salary) over(partition by dept_code)), 'fm999,999,999') 부서별평균급여,
+    to_char(trunc(avg(salary) over()), 'fm999,999,999') 전체사원평균급여,
+    count(*) over(partition by dept_code) 부서별인원
+from employee
+order by dept_code;
