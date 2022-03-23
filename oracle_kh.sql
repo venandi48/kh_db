@@ -2136,3 +2136,689 @@ select
     count(*) over(partition by dept_code) 부서별인원
 from employee
 order by dept_code;
+
+
+-- ====================================================
+-- DML
+-- ====================================================
+-- Data Manipulation Language 데이터 조작어
+-- 테이블의 데이터를 조작하는 명령어 모음
+-- insert / update / delete / select
+-- insert, update, delete : 처리된 행의 개수를 리턴
+-- 명령어 실행으로는 DB에 실제 반영되지 않으므로, TCL commit명령어를 실행해야한다.
+-- rollback처리하면 마지막 commit시점으로 복귀
+
+-------------------------------------------------------
+-- INSERT
+-------------------------------------------------------
+-- 특정 테이블에 새로운 행(row/record)을 추가하는 명령어
+-- 정상실행 시 테이블에 행이 추가됨
+
+/*
+    문법1 - 컬럼명을 지정하지 않는 경우(모든 컬럼을 테이블에 정의된 순서로 작성)
+        insert into 테이블명
+        values(컬럼1값, 컬럼2값 ... );
+    
+    문법2 - 컬럼명을 지정하는 경우(지정한 컬럼만 데이터를 작성. not null컬럼은 생략불가)
+        insert into 테이블명 (컬럼명1, 컬럼명2, ... )
+        values(컬럼1값, 컬럼2값 ... );
+*/
+
+create table sample(
+    code number,
+    name varchar2(100) not null,
+    nickname varchar2(100) default '홍길동',
+    email varchar2(100) default 'honggd@gmail.com' not null,
+    enroll_date date default sysdate
+);
+
+-- 데이터추가
+insert into
+    sample
+values(
+    123, '고길동', '미스터고고', 'go@gmail.com', default
+);
+insert into
+    sample
+values(
+    123, '고길동', null, 'go@gmail.com', default
+);
+select * from sample;
+
+-- 자료형 일치하지 않을때 ORA-01722: 수치가 부적합합니다
+-- 컬럼수가 맞지 않는 경우 ORA-00947: 값의 수가 충분하지 않습니다
+-- not null 컬럼에 null값 대입하는 경우 ORA-01400: NULL을 ("KH"."SAMPLE"."NAME") 안에 삽입할 수 없습니다
+-- 지정한 자료형 크기보다 큰 값을 추가 할 경우 ORA-12899: "KH"."SAMPLE"."NAME" 열에 대한 값이 너무 큼(실제: 126, 최대값: 100)
+insert into
+    sample
+values(
+    '가나다', '고길동', '미스터고고', 'go@gmail.com', default
+);
+
+insert into
+    sample
+values(
+    '고길동', '미스터고고', 'go@gmail.com', default
+);
+
+insert into
+    sample
+values(
+    123, null, '미스터고고', 'go@gmail.com', default
+);
+
+insert into
+    sample
+values(
+    123, '고길동동도도도도도도도도도도도도도도도도도도도도도도도도도도도도도도도도도도도도도도', '미스터고고', 'go@gmail.com', default
+);
+
+-- 생략한 값은 null이 대입되거나, default값이 지정된 경우 default값으로 처리
+insert into
+    sample (code, name, email)
+values(
+    345, '신사', 'sinsa@gmail.com'
+);
+select * from sample;
+
+-- not null 컬럼은 생략할 수 없다.
+-- ORA-01400: NULL을 ("KH"."SAMPLE"."NAME") 안에 삽입할 수 없습니다
+-- not null이어도 default값이 지정된 경우는 생략할 수 있다.
+insert into
+    sample (code, email)
+values(
+    345, 'sinsa@gmail.com'
+);
+insert into
+    sample (code, name)
+values(
+    555, '세종'
+);
+select * from sample;
+
+
+-- 데이터 몇개 추가해보기
+insert into sample
+values(
+    600, '김뫄뫄', '뫄뫄라네','kmm6@naver.com', '22/02/16'
+);
+insert into
+    sample(code, name, nickname, email)
+values(
+    603, '박솨솨', '솨솨박','sspark@gmail.com'
+);
+insert into sample
+values(
+    605, '김탁구', '제빵왕','bakingkim@gmail.com', '21/07/04'
+);
+insert into
+    sample(name, code)
+values(
+    '홍감자', 609
+);
+commit;
+
+
+-- ex_employee 생성!
+-- subquery 이용해 table을 생성하면, not null을 제외한 제약조건, 기본값은 모두 제거된다.
+create table ex_employee
+as
+select *
+from employee;
+
+select * from ex_employee;
+
+-- not null 확인
+desc employee;
+-- 기본값 확인
+select *
+from user_tab_cols
+where table_name = 'EMPLOYEE'; -- 이때는 테이블명 대문자로 작성할것
+
+desc ex_employee;
+-- 기본값 확인
+select *
+from user_tab_cols
+where table_name = 'EX_EMPLOYEE';
+
+alter table ex_employee
+add constraint pk_ex_employee primary key(emp_id) -- emp_id 기본키지정(식별자컬럼)
+modify quit_yn default 'N' -- 기본값 지정
+modify hire_date default sysdate; -- 기본값 지정
+
+-- 데이터 추가
+-- 301 함지민 - 모든 컬럼에 데이터 추가(문법1)
+-- 302 김태리 - not null 컬럼만 데이터 추가(문법2)
+insert into ex_employee
+values(
+    '301', '함지민', '941223-2233445', 'hjm94@gmail.com', '01033327575',
+    'D2', 'J4', 'S5', 2200000, null, '204', '22/01/23', null, default
+);
+
+insert into
+    ex_employee(emp_id, emp_name, emp_no, job_code, sal_level)
+values('302', '김태리', '930708-2123456', 'J5', 'S6');
+
+select * from ex_employee;
+
+-- 서브쿼리를 이용한 insert
+create table ex_employee_info(
+    emp_id char(3),
+    emp_name varchar2(30),
+    email varchar2(100)
+);
+
+insert into ex_employee_info(
+    select
+        emp_id, emp_name, email
+    from
+        ex_employee
+);
+
+select * from ex_employee_info;
+
+-- ex_employee_manager 테이블 생성
+-- 사번, 사원명, 매니저사번, 매니저명
+create table ex_employee_manager(
+    emp_id char(3),
+    emp_name varchar2(20),
+    manager_id char(3),
+    manager_name varchar2(20)
+);
+
+insert into ex_employee_manager(
+    select
+        e.emp_id,
+        e.emp_name,
+        e.manager_id,
+        (select emp_name from employee where e.manager_id = emp_id)
+    from
+        employee e
+);
+select * from ex_employee_manager;
+
+-- 특정 테이블의 데이터를 여러 테이블에 동시에 insert 하기
+create table ex_employee_hire_date(
+    emp_id char(3),
+    emp_name varchar2(20),
+    hire_date date
+);
+create table ex_employee_salary(
+    emp_id char(3),
+    emp_name varchar2(20),
+    salary number
+);
+
+-- insert all
+insert all
+    into ex_employee_salary values(emp_id, emp_name, salary)
+    into ex_employee_hire_date values(emp_id, emp_name, hire_date)
+select
+    emp_id, emp_name, salary, hire_date
+from
+    ex_employee ;
+
+select * from ex_employee_hire_date;
+select * from ex_employee_salary;
+
+
+-------------------------------------------------------
+-- UPDATE
+-------------------------------------------------------
+-- 특정 행을 찾고, 해당 행의 컬럼값을 변경
+-- 처리이후 행 수의 변화는 없음
+-- 요청 후 수정된 행의 수를 반환
+
+-- 205번 사원의 급여를 100,000원 인상, 직급은 J2로 변경
+select *
+from employee
+where emp_id = '205';
+
+update
+    ex_employee
+set
+    job_code = 'J4',
+    salary = salary + 100000 -- 복합대입연산자 없음
+where
+    emp_id = '205';
+
+commit;
+--rollback;
+
+-- where절에 행이 여러개 조회되면 동시에 여러행 수정 가능
+-- D5부서원의 급여를 10% 인상
+select * from ex_employee where dept_code = 'D5';
+
+update
+    ex_employee
+set
+    salary = salary * 1.1
+where
+    dept_code = 'D5';
+
+-- 임시환 사원의 직급을 과장으로 변경
+select * from ex_employee where emp_name = '임시환'; 
+update
+    ex_employee
+set
+    job_code = (select job_code from job where job_name = '과장')
+where
+    emp_name = '임시환';
+
+-- where절에 조건컬럼은 식별자 컬럼을 사용하는 것이 좋다.
+
+-------------------------------------------------------
+-- DELETE
+-------------------------------------------------------
+-- 특정 행을 삭제하는 구문.
+-- 처리결과 행의 수가 줄어든다.
+
+delete from
+    ex_employee
+where
+    emp_id = '302';
+
+select * from ex_employee;
+
+commit;
+
+-- where절 사용하지 않으면 전체 행 삭제
+delete from
+    ex_employee;
+select * from ex_employee;
+rollback;
+
+-- ++++++++++++++++++++++++++++++++++++++++++++++++++++
+-- TRUNCATE
+-- ++++++++++++++++++++++++++++++++++++++++++++++++++++
+-- DDL로써, 전체행 삭제
+-- auto-commit 되므로 rollback으로 복구할 수 없음
+-- delete와 달리 before-image를 생성하지 않으므로 처리속도 매우 빠름
+
+truncate table ex_employee;
+select * from ex_employee;
+
+-- 복구
+insert into ex_employee(
+    select * from employee
+);
+commit;
+
+-- DDL/DML 혼용 시 주의할 점
+create table tb_test(
+    id varchar2(20)
+);
+
+insert into tb_test values('honggd');
+insert into tb_test values('sinsa');
+
+-- 중간에 끼어든 DDL 작업
+-- commit 실행 시, 이전 작업내용 포함
+create table tb_test2(
+    id varchar2(20)
+);
+
+rollback;
+select * from tb_test;
+
+
+-- ====================================================
+-- DDL
+-- ====================================================
+-- Data Definition Language 데이터 정의어
+-- database 객체를 생성/수정/삭제하는 명령어
+-- create / alter / drop / truncate
+-- 자동커밋되므로 DML과 혼용시 주의 필요
+
+-- DB의 객체 조회
+select
+    distinct object_type
+from
+    all_objects; -- Data Dictionary 객체의 메타정보를 관리하는 테이블
+
+/*
+    오라클 database객체 종류
+    - table
+    - user
+    - view
+    - sequence
+    - index
+    - package
+    - procedure
+    - function
+    - trigger
+    - synonym
+    - job scheduler
+    ...
+    
+*/
+
+-------------------------------------------------------
+-- CREATE
+-------------------------------------------------------
+-- 주석
+-- 테이블 생성 시, 테이블/컬럼에 대해 주석을 작성 할 수 있음
+select *
+from user_tab_comments;
+
+select *
+from user_tab_comments
+where table_name = 'EMPLOYEE';
+
+select *
+from user_col_comments
+where table_name = 'EMPLOYEE';
+
+-- 테이블 / 컬럼 주석
+comment on table ex_employee is '사원관리 연습테이블';
+comment on table ex_employee is '사원관리 연습테이블이다!'; -- 주석 수정(덮어쓰기)
+
+select *
+from user_tab_comments
+where table_name = 'EX_EMPLOYEE';
+
+comment on table ex_employee is ''; -- 주석 삭제
+
+comment on column ex_employee.emp_id is '사번';
+comment on column ex_employee.emp_name is '사원명';
+comment on column ex_employee.emp_no is '주민번호';
+
+select *
+from user_col_comments
+where table_name = 'EX_EMPLOYEE';
+
+
+-- ++++++++++++++++++++++++++++++++++++++++++++++++++++
+-- 제약조건 constraint
+-- ++++++++++++++++++++++++++++++++++++++++++++++++++++
+-- 각 컬럼에 대해 데이터 제약을 설정할 수 있음
+-- 하나의 레코드에서 하나의 컬럼이라도 제약조건을 위반하면 레코드 자체가 insert되지 않음
+-- 데이터 무결성을 지키기위해 필수적
+-- (데이터의 정확성, 일관성을 지켜내는 것)
+
+/*
+    1. not null     (C) : null을 허용하지 않음. 필수 컬럼
+    2. unique       (U) : 다른 레코드와 중복값을 허용하지 않음
+    3. primary key  (P) : 식별자컬럼. 기본키.
+        - 다른 레코드와 중복값을 허용하지 않고, null도 허용하지 않음
+        - 테이블당 하나만 지정 가능
+    4. foreign key  (R) : 왜래키. 부모테이블에 있는 값만 참조 할 수 있음
+        - department.dept_id -> employee.dept_code(FK)
+    5. check        (C) : 지정한 도메인의 값만 사용할 수 있음
+        - 도메인의 범위를 지정
+    
+    CONSTRAINT_TYPE C는 not null 또는 check제약조건을 의미하므로
+    serch_condition 컬럼을 확인해야 구체적으로 어떤 제약조건인지 확인 가능
+*/
+
+-- 제약조건 조회
+select *
+from
+    user_constraints
+where
+    table_name = 'EMPLOYEE';
+
+select *
+from
+    user_cons_columns
+where
+    table_name = 'EMPLOYEE';
+
+
+-- 자주 사용되는 제약조건 조회 쿼리
+select 
+    constraint_name,
+    uc.table_name,
+    ucc.column_name,
+    uc.constraint_type,
+    uc.search_condition
+from
+    user_constraints uc join user_cons_columns ucc
+        using(constraint_name)
+where
+     uc.table_name = 'EMPLOYEE';
+
+
+-- 제약조건 작성방법
+-- 1. 컬럼레벨 : not null, pk, uq, fk, ck
+-- 2. 테이블레벨 : pk, uq, fk, ck
+
+-- 제약조건 테스트용 테이블
+create table tb_member(
+    id varchar2(20),
+    name varchar2(50) not null,
+    password varchar2(20) not null,
+
+    -- 알아보기 좋은 이름 지정하기
+    email varchar2(50) constraint uq_tb_member_email unique,
+
+    gender char(1),
+    reg_date date
+);
+
+-- + -- + -- + -- + -- + -- + -- + -- + -- + -- + -- + -- +
+-- unique 제약조건
+-- + -- + -- + -- + -- + -- + -- + -- + -- + -- + -- + -- +
+
+-- unique제약조건
+-- 각 레코드별로 고유한 값을 사용해야 함
+insert into
+    tb_member
+values(
+    'honggd', '홍길동', '1234', 'gd@naver.com', 'M', sysdate
+);
+
+insert into
+    tb_member
+values(
+    'gogd', '고길동', '1234', 'gd@naver.com', 'M', sysdate
+); --ORA-00001: 무결성 제약 조건(KH.UQ_TB_MEMBER_EMAIL)에 위배됩니다
+
+-- uq제약조건이 걸려있어도 null은 허용
+-- null에 대한 허용은 dbms에 따라 차이가 있을 수 있음
+insert into
+    tb_member
+values(
+    'gogd', '고길동', '1234', null, 'M', sysdate
+);
+
+insert into
+    tb_member
+values(
+    'sinsa', '신사', '1234', null, 'F', sysdate
+);
+
+select * from tb_member;
+
+-- 여러컬럼을 포함하는 unique제약조건 생성가능
+create table abc(
+    a varchar2(10) not null,
+    b varchar2(20) not null,
+    constraint uq_abc_ab unique(a, b)
+);
+-- drop table abc;
+
+insert into abc
+values(
+    '안녕', '잘가'
+);
+
+insert into abc
+values(
+    '안녕', '잘자'
+);
+
+insert into abc
+values(
+    '안녕', null
+); -- ORA-01400: NULL을 ("KH"."ABC"."B") 안에 삽입할 수 없습니다
+
+select * from abc;
+
+
+
+
+-- + -- + -- + -- + -- + -- + -- + -- + -- + -- + -- + -- +
+-- PRIMARY KEY 제약조건
+-- + -- + -- + -- + -- + -- + -- + -- + -- + -- + -- + -- +
+-- 식별자 컬럼. 다른 레코드와 구분할 수 있는 식별자. 테이블당 하나만 허용
+-- RDBMS에서 테이블간 참조를 위한 컬럼으로 주로 사용
+
+-- 제약조건 테스트용 테이블
+-- drop table tb_member;
+create table tb_member(
+    id varchar2(20),
+    --id varchar2(20) constraint pk_tb_member_id primary key, 컬럼 레벨 작성
+    name varchar2(50) not null,
+    password varchar2(20) not null,
+    email varchar2(50),
+    gender char(1),
+    reg_date date,
+    
+    constraint pk_tb_member_id primary key(id), -- 테이블 레벨 작성
+    constraint uq_tb_member_email unique(email) -- 테이블 레벨 작성
+);
+
+insert into tb_member values('honggd', '홍길동', '1234', null, null, sysdate);
+
+-- ORA-00001: 무결성 제약 조건(KH.PK_TB_MEMBER_ID)에 위배됩니다
+insert into tb_member values('honggd', '황길동', '1234', null, null, sysdate);
+-- ORA-01400: NULL을 ("KH"."TB_MEMBER"."ID") 안에 삽입할 수 없습니다
+insert into tb_member values(null, '황길동', '1234', null, null, sysdate);
+
+
+-- 기본키도 복합키(여러컬럼)로 설정이 가능
+create table tb_order_composite(
+    product_id varchar2(20),
+    user_id varchar2(20),
+    cnt number default 1,
+    order_date date default sysdate,
+    
+    constraint pk_tb_order_composite primary key(product_id, user_id, order_date)
+);
+
+insert into tb_order_composite values('samsung_1234', 'honggd', 5, default); -- 두번 실행
+-- ORA-01400: NULL을 ("KH"."TB_ORDER_COMPOSITE"."USER_ID") 안에 삽입할 수 없습니다
+insert into tb_order_composite values('samsung_1234', null, 5, default);
+
+select
+    product_id,
+    user_id,
+    cnt,
+    to_char(order_date, 'yyyy-mm-dd hh:mi:ss') order_date
+from tb_order_composite;
+
+
+select 
+    constraint_name,
+    uc.table_name,
+    ucc.column_name,
+    uc.constraint_type,
+    uc.search_condition
+from
+    user_constraints uc join user_cons_columns ucc
+        using(constraint_name)
+where
+     uc.table_name = 'TB_ORDER_COMPOSITE';
+
+
+-- + -- + -- + -- + -- + -- + -- + -- + -- + -- + -- + -- +
+--  CHECK 제약조건
+-- + -- + -- + -- + -- + -- + -- + -- + -- + -- + -- + -- +
+-- 컬럼값의 범위를 한정하는 제약조건
+
+
+-- 제약조건 테스트용 테이블
+-- drop table tb_member;
+create table tb_member(
+    id varchar2(20),
+    name varchar2(50) not null,
+    password varchar2(20) not null,
+    email varchar2(50),
+    gender char(1),
+    point number,
+    reg_date date,
+    
+    -- 테이블 레벨 작성
+    constraint pk_tb_member_id primary key(id),
+    constraint uq_tb_member_email unique(email),
+    constraint ck_tb_member_gender check(gender in('M', 'F')),
+    constraint ck_tb_member_point check(point >= 0)
+);
+
+-- ORA-02290: 체크 제약조건(KH.CK_TB_MEMBER_POINT)이 위배되었습니다
+insert into tb_member values('honggd', '홍길동', '1234', null, 'M', -10, default);
+-- ORA-02290: 체크 제약조건(KH.CK_TB_MEMBER_GENDER)이 위배되었습니다
+insert into tb_member values('honggd', '홍길동', '1234', null, 'm', 100, default);
+
+insert into tb_member values('honggd', '홍길동', '1234', null, 'M', 100, default);
+
+-- ORA-02290: 체크 제약조건(KH.CK_TB_MEMBER_POINT)이 위배되었습니다
+update tb_member set point = point - 1000 where id = 'honggd';
+
+
+-- + -- + -- + -- + -- + -- + -- + -- + -- + -- + -- + -- +
+--  FOREIGN KEY 제약조건
+-- + -- + -- + -- + -- + -- + -- + -- + -- + -- + -- + -- +
+-- 참조무결성을 유지하기 위한 제약조건
+-- 부모테이블(참조하는 테이블)에서 제공하는 값만 사용할 수 있게 제한함
+-- 자식테이블에서 FK 지정
+--      ex.) department - employee : employee.dept_code가 FK
+-- null은 기본적으로 허용
+-- 참조하는 부모테이블 컬럼은 pk또는 uq 제약조건이 걸려있어야 함
+
+select 
+    constraint_name,
+    uc.table_name,
+    ucc.column_name,
+    uc.constraint_type,
+    uc.search_condition
+from
+    user_constraints uc join user_cons_columns ucc
+        using(constraint_name)
+where
+    uc.table_name = 'EMPLOYEE';
+
+-- 회원테이블
+create table shop_member(
+    member_id varchar2(20),
+    member_name varchar2(30),
+    constraint pk_shop_member_id primary key(member_id)
+);
+
+insert into shop_member values('honggd', '홍길동');
+insert into shop_member values('sinsa', '신사임당');
+
+select * from shop_member;
+
+-- 구매테이블
+-- drop table shop_buy;
+create table shop_buy(
+    buy_no number,
+    member_id varchar2(20),
+    product_name varchar2(30),
+    constraint pk_shop_buy_no primary key(buy_no),
+    
+    constraint fk_shop_buy_member_id foreign key(member_id)
+                                     references shop_member(member_id)
+                                     on delete cascade
+);
+
+-- ORA-02291: 무결성 제약조건(KH.FK_SHOP_BUY_MEMBER_ID)이 위배되었습니다- 부모 키가 없습니다
+insert into shop_buy values(1, 'honggggggd', '축구화');
+
+insert into shop_buy values(1, 'honggd', '축구화');
+insert into shop_buy values(2, 'sinsa', '볼링화');
+select * from shop_buy;
+
+
+-- 부모테이블의 데이터를 삭제하려면?
+
+-- RA-02292: 무결성 제약조건(KH.FK_SHOP_BUY_MEMBER_ID)이 위배되었습니다- 자식 레코드가 발견되었습니다
+delete from shop_member where member_id = 'honggd';
+
+-- 외래키 삭제옵션
+-- 부모테이블의 데이터를 삭제할 경우, 처리방식을 결정
+-- 1. on delete restricted - 기본값
+-- 2. on delete set null - 부모데이터 삭제 시 자식fk컬럼값을 null로 처리
+-- 3. on delete cascade - 부모데이터 삭제시 참조하는 자식 레코드를 따라서 삭제

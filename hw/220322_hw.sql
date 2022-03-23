@@ -22,13 +22,25 @@ from employee e left join department d
     on e.dept_code = d.dept_id
 where
     (
-        select max(salary)
+        select max((salary + salary * nvl(bonus, 0)) * 12)
         from employee
         where dept_code = e.dept_code
         group by dept_code
-    ) = salary
+    ) = (salary + salary * nvl(bonus, 0)) * 12
     and
     d.dept_title = '기술지원부' ;
+
+-- 강사님 풀이
+select *
+from (
+    select EMP_NAME 이름
+        ,DEPT_CODE 부서코드
+        ,(SALARY+SALARY*NVL(BONUS,0))*12 연봉
+    from EMPLOYEE
+    where DEPT_CODE=(select DEPT_ID from DEPARTMENT where DEPT_TITLE ='기술지원부')
+    order by 연봉 desc
+)
+where rownum < 2; 
 
 
 
@@ -86,6 +98,12 @@ select distinct
 from employee e
 where
     (select avg(salary) from employee where dept_code = e.dept_code) >= 3000000 ;
+-- 강사님 풀이
+select nvl((select DEPT_TITLE from DEPARTMENT where DEPT_ID=EMPLOYEE.DEPT_CODE),'인턴') 부서명
+        ,trunc(avg(SALARY),0) 평균급여
+from EMPLOYEE 
+group by DEPT_CODE
+having avg(SALARY) >= 3000000;
 
 
 
@@ -97,20 +115,68 @@ select
     emp_name 사원명,
     (select job_name from job where job_code = e.job_code) 직급명,
     nvl((select dept_title from department where dept_id = e.dept_code), '인턴') 부서명,
-    salary 연봉,
+    연봉,
+    job_avg_sal 직급평균연봉,
     trunc(e.job_avg_sal)
 from
 (
     select
         t.*,
         decode(substr(emp_no, 8, 1), '2', '여', '4', '여', '남') gender,
-        avg((salary + (salary * nvl(bonus, 0)))*12) over(partition by job_code) job_avg_sal
+        avg((salary + (salary * nvl(bonus, 0)))*12) over(partition by job_code) job_avg_sal,
+        (salary + salary * nvl(bonus, 0)) * 12 연봉
     from employee t
 )e
 where
-    e.job_avg_sal > salary
+    e.job_avg_sal > 연봉
     and e.gender = '여'
 order by emp_name ;
+
+-- 강사님 풀이
+with my_emp
+as
+(
+    select 
+        emp_name,
+        nvl((select dept_title from department where dept_id = E.dept_code), '인턴') dept_title, 
+        job_code,
+        (select job_name from job where job_code = E.job_code) job_name,
+        (salary + salary * nvl(bonus, 0)) * 12 annual_salary,
+        decode(substr(emp_no,8,1), '2','여','4','여','남') gender
+    from 
+        employee E
+)
+select 
+    *
+from 
+    my_emp E
+where 
+    gender = '여' 
+    and 
+    annual_salary < ( select avg((salary+salary*nvl(bonus,0))*12) 
+                        from employee 
+                        where job_code = E.job_code )
+order by emp_name;
+-- 강사님 풀이2
+with my_emp
+as
+(
+    select 
+        emp_name,
+        nvl((select dept_title from department where dept_id = E.dept_code), '인턴') dept_title, 
+        (select job_name from job where job_code = E.job_code) job_name,
+        (salary + salary * nvl(bonus, 0)) * 12 annual_salary,
+        decode(substr(emp_no,8,1), '2','여','4','여','남') gender,
+        avg((salary + salary * nvl(bonus, 0)) * 12) over(partition by job_code) avg_annual_salary_by_job_code
+    from 
+        employee E
+)
+select  *
+from my_emp E
+where 
+    gender = '여' 
+    and annual_salary < avg_annual_salary_by_job_code
+order by emp_name;
 
 
 
