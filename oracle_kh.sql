@@ -2277,6 +2277,7 @@ where table_name = 'EMPLOYEE'; -- 이때는 테이블명 대문자로 작성할�
 
 desc ex_employee;
 -- 기본값 확인
+-- 설정값까지 동일하게 생성되지 않았음을 확인 가능
 select *
 from user_tab_cols
 where table_name = 'EX_EMPLOYEE';
@@ -2822,3 +2823,516 @@ delete from shop_member where member_id = 'honggd';
 -- 1. on delete restricted - 기본값
 -- 2. on delete set null - 부모데이터 삭제 시 자식fk컬럼값을 null로 처리
 -- 3. on delete cascade - 부모데이터 삭제시 참조하는 자식 레코드를 따라서 삭제
+
+-- 식별관계 / 비식별관계
+-- fk컬럼을 다시 pk로 사용하면 식별관계, pk로 사용하지 않으면 비식별관계
+-- 식별관계인 경우 0~1개 행이 존재할 수 있음
+-- 비식별관계인 경우 0~n개 행이 존재할 수 있음
+
+create table tb_person(
+    id varchar2(20) primary key
+);
+insert into tb_person values('sinsa');
+select * from tb_person;
+
+create table tb_person_address(
+    person_id varchar2(20),
+    addr varchar2(500),
+    constraint fk_tb_person_address 
+        foreign key(person_id) references tb_person(id),
+    constraint pk_tb_person_address 
+        primary key(person_id)
+);
+
+insert into tb_person_address values('sinsa', '서울시 강남구 역삼동');
+
+--ORA-00001: 무결성 제약 조건(KH.PK_TB_PERSON_ADDRESS)에 위배됩니다
+insert into tb_person_address values('sinsa', '서울시 강동구 신내동');
+
+select * from tb_person_address;
+
+
+-------------------------------------------------------
+-- ALTER
+-------------------------------------------------------
+-- 객체를 수정하는 명령어
+-- table에 대해서 수정가능한 것 : 컬럼, 제약조건(추가만 가능), 테이블명
+
+-- 서브명령어
+/*
+    add     : 컬럼/제약조건 추가
+    modify  : 컬럼수정(자료형, default값, not null여부)
+    rename  : 컬럼/제약조건 이름 변경
+    drop    : 컬럼/제약조건 삭제
+*/
+
+create table tb_user (
+    no number primary key,
+    id varchar2(20),
+    pw varchar2(20)
+);
+desc tb_user;
+
+-- ++++++++++++++++++++++++++++++++++++++++++++++++++++
+-- ADD
+-- ++++++++++++++++++++++++++++++++++++++++++++++++++++
+-- 컬럼/제약조건을 추가
+
+alter table
+    tb_user
+add
+    name varchar2(50);
+
+alter table
+    tb_user
+add
+    age number default 0;
+
+desc tb_user;
+
+alter table
+    tb_user
+add
+    constraint uq_tb_user_id unique(id);
+
+desc tb_user;
+
+select 
+    constraint_name,
+    uc.table_name,
+    ucc.column_name,
+    uc.constraint_type,
+    uc.search_condition
+from
+    user_constraints uc join user_cons_columns ucc
+        using(constraint_name)
+where
+    uc.table_name = 'TB_USER';
+
+
+-- ++++++++++++++++++++++++++++++++++++++++++++++++++++
+-- MODIFY
+-- ++++++++++++++++++++++++++++++++++++++++++++++++++++
+-- 컬럼에 대해서만 수정 가능
+-- 제약조건 중 not null은 수정 가능
+-- null 작성시 not null 해제
+
+alter table
+    tb_user
+modify
+    name varchar2(100) not null;
+
+desc tb_user;
+
+-- 데이터가 있는 상황에서 자료형의 크기를 기존값 크기보다 작게 수정불가
+insert into tb_user values (1, 'honggd', '1234', '홍길동길동길동길동', 33);
+commit;
+
+-- ORA-01441: 일부 값이 너무 커서 열 길이를 줄일 수 없음
+alter table
+    tb_user
+modify
+    name varchar2(20);
+
+-- ++++++++++++++++++++++++++++++++++++++++++++++++++++
+-- RENAME
+-- ++++++++++++++++++++++++++++++++++++++++++++++++++++
+-- 컬럼명 / 제약조건명 수정
+
+alter table
+    tb_user
+rename
+    column pw to password;
+
+desc tb_user;
+
+select 
+    constraint_name,
+    uc.table_name,
+    ucc.column_name,
+    uc.constraint_type,
+    uc.search_condition
+from
+    user_constraints uc join user_cons_columns ucc
+        using(constraint_name)
+where
+    uc.table_name = 'TB_USER';
+
+alter table
+    tb_user
+rename
+    constraint SYS_C007790 to pk_tb_user_no;
+
+-- gender컬럼 및 check제약조건 추가
+alter table tb_user
+    add gender char(1)
+    add constraint ck_tb_user_gender check(gender in('M', 'F'));
+
+-- ++++++++++++++++++++++++++++++++++++++++++++++++++++
+-- DROP
+-- ++++++++++++++++++++++++++++++++++++++++++++++++++++
+-- 컬럼 삭제, 제약조건 삭제
+-- not null제약조건은 modify로 수정(null 지정)
+
+alter table
+    tb_user
+drop column age;
+
+alter table
+    tb_user
+drop constraint ck_tb_user_gender;
+
+desc tb_user;
+
+select 
+    constraint_name,
+    uc.table_name,
+    ucc.column_name,
+    uc.constraint_type,
+    uc.search_condition
+from
+    user_constraints uc join user_cons_columns ucc
+        using(constraint_name)
+where
+    uc.table_name = 'TB_USER';
+
+-- 테이블 이름 변경
+-- 방법1
+alter table
+    tb_user
+rename to
+    tb_user_after;
+
+-- 방법2
+rename
+    tb_user_after to tb_user_after2;
+
+select * from tb_user_after2;
+
+
+-------------------------------------------------------
+-- DROP
+-------------------------------------------------------
+-- 객체 삭제
+-- 돌이킬 수 없기때문에 정말 신중하게 사용할 것
+-- drop은 주석 안에 작성하는 습관을 들일 것
+
+-- drop table tb_user_after2
+
+-- 자식테이블이 참조하는 부모테이블을 삭제
+
+insert into shop_member values ('honggd', '홍길동');
+insert into shop_buy values (123, 'honggd', '농구화');
+insert into shop_buy values (127, 'honggd', '등산화');
+select * from shop_member;
+select * from shop_buy;
+-- 두 테이블은 비식별관계의 부모-자식 테이블인 상황
+
+-- ORA-02449: 외래 키에 의해 참조되는 고유/기본 키가 테이블에 있습니다
+--drop table shop_member;
+
+--drop table shop_member cascade constraint;
+
+select 
+    constraint_name,
+    uc.table_name,
+    ucc.column_name,
+    uc.constraint_type,
+    uc.search_condition
+from
+    user_constraints uc join user_cons_columns ucc
+        using(constraint_name)
+where
+    uc.table_name = 'SHOP_BUY';
+
+
+-- ====================================================
+-- DCL
+-- ====================================================
+-- Data Control Language 데이터 제어어
+-- 권한 할당, 권한 회수 등에 사용하는 명령어
+-- TCL을 포함하는 상위개념
+
+-- 롤(role) connect, resouce
+-- 권한(privilige) create session/table/view, select on tb
+
+
+-------------------------------------------------------
+-- GRANT
+-------------------------------------------------------
+-- 권한을 사용자나 롤(권한묶음)에 부여하는 명령어
+-- 문법 : grant (특정권한 | 롤) to (사용자 | 롤) [with admin option]
+-- with admin option은 부여받은 권한을 다시 부여할 수 있는 옵션
+
+
+--------------------관리자계정으로 실행-------------------
+-- (관리자계정) qwerty 생성 -> 접속시도(실패) : create session권한 부재
+-- create session | connect 을 qwerty에 부여 -> 접속시도(성공)
+
+-- 관리자 계정 아닐때 : ORA-65096: 공통 사용자 또는 롤 이름이 부적합합니다.
+alter session set "_oracle_script" = true;
+create user qwerty identified by qwerty default tablespace users;
+
+grant create session to qwerty;
+grant connect to qwerty;
+
+alter user qwerty quota unlimited on users;
+grant resource to qwerty; -- 객체 생성권한
+
+-- 롤이 가지고 있는 권한 조회
+select *
+from
+    dba_sys_privs
+where
+    grantee in ('CONNECT', 'RESOURCE');
+/*
+RESOURCE	CREATE SEQUENCE
+RESOURCE	CREATE PROCEDURE
+CONNECT	    SET CONTAINER
+RESOURCE	CREATE CLUSTER
+CONNECT	    CREATE SESSION
+RESOURCE	CREATE INDEXTYPE
+RESOURCE	CREATE OPERATOR
+RESOURCE	CREATE TYPE
+RESOURCE	CREATE TRIGGER
+RESOURCE	CREATE TABLE
+*/
+-------------------------------------------------------
+
+--------------------- kh 계정으로 실행--------------------
+
+-- 특정 테이블에 대한 권한 부여
+create table tb_coffee(
+    name varchar2(50),
+    price number not null,
+    company varchar2(50) not null,
+    constraint pk_tb_coffee_name primary key(name)
+);
+insert into tb_coffee values ('맥심', 3000, '동서식품');
+insert into tb_coffee values ('카누', 5000, '동서식품');
+insert into tb_coffee values ('네스카페', 4000, '네슬레');
+commit;
+
+-- kh(소유주)가 qwerty에게 tb_coffee 조회권한 부여
+grant select on tb_coffee to qwerty;
+grant insert, update, delete on tb_coffee to qwerty;
+
+select * from tb_coffee;
+
+-------------------------------------------------------
+-- REVOKE
+-------------------------------------------------------
+-- 권한을 회수하는 명령어
+-- revoke (권한 | 롤) from (사용자 | 롤)
+
+revoke insert, update, delete on tb_coffee from qwerty;
+revoke select on tb_coffee from qwerty;
+
+
+-- ====================================================
+-- TCL
+-- ====================================================
+-- Transaction Control Language 트랜잭션 제어어
+-- commit / rollback / savepoint
+
+-- Transaction
+-- 한번에 처리되어야 할 최소한의 작업단위
+-- 하위 작업들은 모두 성공 or 모두 실패되어야 함
+
+-- 계좌이체 a -----> b 50,000전송
+-- 1. a 계좌에서 50,000원 차감
+-- 2. b 계좌에서 50,000원 증액
+-- 두 단계가 하나의 트랜잭션을 구성
+
+-- 1, 2번 update 실행 후 모두 성공 시 commit, 하나라도 실패 시 rollback
+
+
+-- ====================================================
+-- DATABASE OBJECT 1
+-- ====================================================
+
+-------------------------------------------------------
+-- DATA DICTIONARY
+-------------------------------------------------------
+-- db를 효율적으로 관리하기위해 다양한 객체의 정보를 가지고 있는 시스템 테이블
+-- 모두 read-only이므로, 추가/수정/삭제 작업은 일절 없음
+-- 객체정보가 변경되면, 자동으로 DD(Data Dictionary)에 반영
+
+-- DD의 종류
+-- 1. 일반사용자용 : user_xxxs
+-- 2. 일반사용자용(부여받은 객체 포함) : all_xxxs
+-- 3. 관리자용 : dba_xxxxs
+
+-- DD조회
+select * from dictionary;
+select * from dict;
+
+-- ++++++++++++++++++++++++++++++++++++++++++++++++++++
+-- USER_XXXS
+-- ++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+-- 내가 소유한 table 조회
+select * from user_tables;
+
+-- 내가 가진 권한조회
+select * from user_sys_privs;
+
+-- 내가 가진 롤 조회
+select * from user_role_privs;
+
+-- 내가 가진 롤에 포함된 권한 조회
+select * from role_sys_privs;
+
+
+select * from user_constraints; -- 제약조건
+select * from user_sequences; -- 시퀀스
+select * from user_indexes; -- 인덱스
+select * from user_views; -- 뷰
+
+-- ++++++++++++++++++++++++++++++++++++++++++++++++++++
+-- ALL_XXXS
+-- ++++++++++++++++++++++++++++++++++++++++++++++++++++
+-- 소유하거나 사용권한을 부여받은 모든 객체 조회
+
+select * from all_tables;
+select * from all_tab_comments; -- 테이블 코멘트
+
+-- ++++++++++++++++++++++++++++++++++++++++++++++++++++
+-- DBA_XXXS
+-- ++++++++++++++++++++++++++++++++++++++++++++++++++++
+-- 관리자만 접근이 가능한 객체 정보 조회
+-- 관리자는 모든 테이블, 모든 사용자에 대한 조회가 가능하다.
+
+--------------------관리자계정으로 실행-------------------
+select * from dba_tables;
+
+select * from dba_tables where owner = 'KH';
+
+select * from dba_sys_privs where grantee = 'KH';
+select * from dba_role_privs where grantee = 'KH';
+select * from dba_tab_privs where owner = 'KH'; -- 테이블에 대한 권한 관리
+-------------------------------------------------------
+
+-------------------------------------------------------
+-- STORED VIEW
+-------------------------------------------------------
+-- 하나 이상의 테이블로부터 원하는 데이터를 선별적으로 제공하는 가상테이블
+-- 실제 데이터를 소유하지 않고, 실제 테이블에 대한 통로역할
+-- 이 객체에는 inline view쿼리를 가지고 있다가 쿼리 실행시 해당 inline view를 처리
+
+select * from user_views;
+
+-- create view권한은 resource롤에 포함되지 않으므로 새로 부여해야함
+-- (관리자계정으로 권한 부여) create view권한을 kh에 부여
+grant create view to kh;
+
+
+create view view_emp
+as
+select * from employee;
+
+-- (선택) or replace : 없으면 생성, 있으면 갱신
+create or replace view view_emp
+as
+select emp_id, emp_name, email, phone from employee;
+
+select * from view_emp; -- 테이블처럼 사용
+
+-- 1. 타 사용자에게 선별적으로 데이터 제공
+-- qwerty에게 view_emp조회권한 부여
+grant select on view_emp to qwerty;
+
+-- 2. 가상컬럼, relation에 대한 조회를 손쉽게 할 수 있다.
+-- 사번, 사원명, 성별, 나이, 직급명, 부서명 조회
+create or replace view view_emp_read
+as
+select
+    emp_id,
+    emp_name,
+    decode(substr(emp_no, 8, 1), '1', '남', '3', '남', '여') gender,
+    extract(year from sysdate) - 
+        (decode(substr(emp_no, 8, 1), '1', 1900, '2', 1900, 2000) + substr(emp_no, 1, 2)) + 1 age,
+    (select job_name from job where e.job_code = job_code) job_name,
+    nvl((select dept_title from department where e.dept_code = dept_id),'인턴') dept_title
+from
+    employee e ;
+
+select * from view_emp_read where gender = '여';
+
+
+-------------------------------------------------------
+-- SEQUENCE
+-------------------------------------------------------
+-- 정수값을 순차적으로 발행하는 객체(채번기)
+-- pk값을 정수로 관리하는 경우 sequence발급한 번호를 사용
+-- 시퀀스 객체의 start with값은 수정불가
+-- 수정하고싶다면 시퀀스 삭제 후 다시 생성할 것
+-- increment by 옵션은 수정가능
+
+/*
+    create sequence 시퀀스명
+    [start with 시작값]                -- 기본값: 1
+    [increment by 증감값]              -- 1
+    [maxvalue 최대값 | nomaxvalue]     -- nomax value
+    [minvalue 최소값 | nominvalue]     -- nominvalue
+    [cycle | nocycle]                 -- nocycle(최대/최소값 도달시 순환여부)
+    [cache 수량 | nocache]             -- 20
+*/
+
+create table tb_advice(
+    no number primary key, --고유한 값
+    user_id varchar2(20) not null,
+    reg_date date default sysdate
+);
+
+create sequence seq_tb_advice_no;
+
+insert into tb_advice(no, user_id) values (seq_tb_advice_no.nextval, 'honggd');
+insert into tb_advice(no, user_id) values (seq_tb_advice_no.nextval, 'sinsa');
+insert into tb_advice(no, user_id) values (seq_tb_advice_no.nextval, 'sejong');
+
+select * from tb_advice;
+
+-- 현재 sequence상태 조회 (마지막 발급번호)
+select seq_tb_advice_no.currval from dual;
+
+-- cacheing된 숫자가 건너뛸 수 있다.
+-- pk는 고유하기만하면 문제가 되지 않는다.
+-- 연속된 숫자로 관리하고자 한다면 sequence사용 시 nocache옵션으로 지정
+select * from user_sequences;
+
+-- 시퀀스 객체의 start with값은 수정불가
+-- 수정하고싶다면 시퀀스 삭제 후 다시 생성할 것
+-- increment by 옵션은 수정가능
+alter sequence seq_tb_advice_no increment by 10;
+
+
+-- 복합문자열을 pk로 처리하세요
+-- 주문테이블 kh_order
+create table kh_order(
+    no varchar2(30), -- 포맷: kh-220324-0001
+    user_id varchar2(20) not null,
+    prod_id varchar2(20) not null,
+    cnt number default 1,
+    order_date date default sysdate,
+    constraint pk_kh_order_no primary key(no)
+);
+
+-- 적절한 seqence를 생성하고, 위와 같은 pk를 생성할 수 있도록 insert문을 작성
+create sequence seq_kh_order_no;
+
+insert into kh_order(no, user_id, prod_id)
+values (
+    'kh-' || to_char(sysdate, 'yymmdd-') || lpad(seq_kh_order_no.nextval, 4, '0'),
+    'dldmswl',
+    'orange7'
+);
+insert into kh_order(no, user_id, prod_id)
+values (
+    'kh-' || to_char(sysdate, 'yymmdd-') || lpad(seq_kh_order_no.nextval, 4, '0'),
+    'honggd',
+    'apple12'
+);
+commit;
+
+select * from kh_order;

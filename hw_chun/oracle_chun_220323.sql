@@ -92,7 +92,7 @@ select
     s. student_name,
     (select department_name from tb_department where s.department_no = department_no) department_name
 from tb_student s
-order by s.student_name ; -- 문제의 결과집합과 다르게 나온다 > 질문하기
+order by s.student_name ;
 
 
 
@@ -194,6 +194,18 @@ where
     not exists (select * from tb_class_professor cp where cp.class_no = c.class_no)
 order by 2;
 
+-- 강사님 풀이
+-- tb_department는 두번쓰이니까 join을 활용하는게 더 간결하다.
+select
+    c.class_name,
+    d.department_name
+from tb_class c
+        left join tb_department d 
+            on c.department_no = d.department_no
+        left join tb_class_professor cp -- left join으로 배정교수 없으면 cp.class_no에 null 대입되어있음
+            on c.class_no = cp.class_no
+where d.category = '예체능' and cp.class_no is null; 
+
 
 
 -- #14번
@@ -228,6 +240,22 @@ where
     student_avg_point >= 4.0
 order by 1 ;
 
+-- 강사님 풀이
+select 
+    s.student_no 학번,
+    s.student_name 이름, 
+    d.department_name "학과 이름",
+    round(avg(g.point),1) 평점
+from tb_student s
+    join tb_department d 
+        on (s.department_no = d.department_no)
+    join tb_grade g 
+        on (s.student_no = g.student_no)
+where s.absence_yn = 'N'
+group by s.student_no, s.student_name, d.department_name
+having avg(g.point) >= 4.0 
+order by s.student_no;
+
 
 -- #16번
 -- 환경조경학과 전공과목들의 과목 별 평점을 파악할 수 있는 SQL 문을 작성하시오.
@@ -240,7 +268,7 @@ from
         using(class_no)
 where
     department_no = (select department_no from tb_department where department_name = '환경조경학과')
-    and c.class_type = '전공선택'
+    and c.class_type like '전공%'
 group by class_no, class_name
 order by 1 ;
 
@@ -289,7 +317,7 @@ from
             using(department_no)
 where
     category = (select category from tb_department where department_name = '환경조경학과')
-    and class_type = '전공선택'
+    and class_type like '전공%'
 group by department_name
 order by 1 ;
 
