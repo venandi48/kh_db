@@ -21,7 +21,7 @@ alter session set "_oracle_script" = true;
 
 -- 일반사용자(kh) 추가
 create user kh
-IDENTIFIED by kh -- 비밀번호
+identified by kh -- 비밀번호
 default tablespace users; -- 실제 데이터 저장공간
 
 -- 접속권한(create, session), 테이블생성권한 부여
@@ -35,9 +35,7 @@ alter user kh quota unlimited on users;
 -- 실습문제용 계정 chun
 alter session set "_oracle_script" = true;
 
-create user chun
-identified by chun
-default tablespace users;
+create user chun identified by chun default tablespace users;
 
 alter user chun quota unlimited on users;
 
