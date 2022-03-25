@@ -19,7 +19,7 @@
 -- 테이블생성
 create table ex_member(
     member_code number,
-    member_id varchar2(20),
+    member_id varchar2(20) not null,
     member_pwd char(20) not null,
     member_name varchar2(30),
     member_addr varchar2(100) not null,
@@ -72,6 +72,14 @@ create table ex_member_nickname(
         foreign key(member_code) references ex_member(member_code),
     constraint pk_ex_nickname_code primary key(member_code)
 );
+-- 강사님 풀이
+/*
+create table ex_member_nickname(
+    member_code number constraint pk_ex_member_nickname primary key 
+                        constraint fk_ex_member_nickname references ex_member(member_code),
+    member_nickname varchar2(100) not null
+);
+*/
 -- drop table ex_member_nickname;
 
 

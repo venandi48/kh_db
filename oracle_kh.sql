@@ -3053,7 +3053,7 @@ where
 -- 권한 할당, 권한 회수 등에 사용하는 명령어
 -- TCL을 포함하는 상위개념
 
--- 롤(role) connect, resouce
+-- 역할(role) connect, resouce
 -- 권한(privilige) create session/table/view, select on tb
 
 
@@ -3069,15 +3069,15 @@ where
 -- (관리자계정) qwerty 생성 -> 접속시도(실패) : create session권한 부재
 -- create session | connect 을 qwerty에 부여 -> 접속시도(성공)
 
+alter session set "_oracle_script" = true; -- 이전 버전 방식으로 이용할 수 있도록 함
 -- 관리자 계정 아닐때 : ORA-65096: 공통 사용자 또는 롤 이름이 부적합합니다.
-alter session set "_oracle_script" = true;
 create user qwerty identified by qwerty default tablespace users;
 
-grant create session to qwerty;
-grant connect to qwerty;
+grant create session to qwerty; -- 권한
+grant connect to qwerty; -- 롤
 
 alter user qwerty quota unlimited on users;
-grant resource to qwerty; -- 객체 생성권한
+grant resource to qwerty; -- 객체 생성 role
 
 -- 롤이 가지고 있는 권한 조회
 select *
@@ -3196,6 +3196,7 @@ select * from user_views; -- 뷰
 
 select * from all_tables;
 select * from all_tab_comments; -- 테이블 코멘트
+select * from all_col_comments; -- 컬럼 코멘트
 
 -- ++++++++++++++++++++++++++++++++++++++++++++++++++++
 -- DBA_XXXS
@@ -3210,7 +3211,9 @@ select * from dba_tables where owner = 'KH';
 
 select * from dba_sys_privs where grantee = 'KH';
 select * from dba_role_privs where grantee = 'KH';
-select * from dba_tab_privs where owner = 'KH'; -- 테이블에 대한 권한 관리
+
+-- 특정 계정이 가지는 테이블에 대한 권한 관리
+select * from dba_tab_privs where owner = 'KH';
 -------------------------------------------------------
 
 -------------------------------------------------------
@@ -3336,3 +3339,619 @@ values (
 commit;
 
 select * from kh_order;
+
+-------------------------------------------------------
+-- INDEX
+-------------------------------------------------------
+-- 색인. sql명령의 처리속도 향상을 위해 table의 컬럼에 대해 생성하는 색인 객체.
+-- key-value형태로 저장.
+-- key : 컬럼값 보관,  value : 행이 저장된 주소값 보관
+
+-- 장점
+-- 1. 검색속도가 빨라지고, 시스템부하가 줄어든다.
+-- 2. 전체적인 성능향상
+
+-- 단점
+-- 1. 인덱스를 위한 추가 저장공간이 필요.
+-- 2. 인덱스 생성/수정/삭제 시 별도의 작업시간이 소요
+-- 3. 데이터 생성/수정/삭제가 빈번하다면 인덱스로인해 성능저하 야기
+
+-- 어떤 컬럼에 대해 인덱스를 만들어야 하는가?
+-- 1. 선택도(selectivity)가 좋은 컬럼을 인덱스로 만든다.
+--  선택도 : 고유한 값을 많이 가지는 것.
+--      ex1) employee.emp_id : 중복X -> 선택도 아주 좋음
+--      ex2) employee.emp_no : 중복X -> 선택도 아주 좋음
+--      ex3) employee.emp_name : 중복가능-> 선택도 좋음
+--      ex4) employee.dept_code : 중복O, 중복빈도 보통 -> 선택도 보통
+--      ex5) employee.gender : 중복O, 중복빈도 높음 -> 선택도 나쁨
+-- 2. where절에 자주 사용되는 컬럼을 선택
+-- 3. join조건컬럼을 선택
+-- 4. 한번 입력된 데이터가 변경이 자주 없는 컬럼
+
+-- 중복값 많은 컬럼, null값이 많은 컬은 가능한 지양할 것
+
+-- index 조회
+-- pk, uq 제약조건이 걸린 컬럼은 자동으로 인덱스를 생성
+select * from user_indexes;
+select * from user_ind_columns;
+
+-- index 조회 한문장으로 join
+-- pk, uq로  생성된 인덱스는 제약조건명과 인덱스명이 같음
+-- 제약조건명을 잘 지으면(테이블명, 컬럼명 포함) 인덱스정보 확인 시 유용
+select *
+from user_indexes join user_ind_columns
+        using(index_name);
+
+-- 실행계획(F10) 확인
+select * from employee where job_code = 'J2'; -- job_code 인덱스 없음
+select * from employee where emp_id = '203'; -- emp_id 인덱스 있음
+select * from employee where dept_code = 'D5';
+select * from employee where emp_no = '070910-4653546';
+select * from employee where emp_name = '송종기';
+
+-- 인덱스 생성
+-- 인덱스이름 on 테이블(컬럼)
+create index idx_employee_emp_name on employee(emp_name);
+select * from employee where emp_name = '송종기';
+
+-- 인덱스 사용시 주의사항
+-- 인덱스 사용여부는 optimizer(최적화처리기)가 결정하지만, 다음 경우는 index사용하지 않음
+-- 1. 인덱스 컬럼을 변형해 조회하는 경우
+--      ex) where substr(emp_no, 8, 1) = '1'
+-- 2. null 비교하는 경우
+--      ex) where emp_name is null
+-- 3. not 비교하는 경우
+--      ex) where emp_name != '송종기'
+-- 4. 인덱스컬럼과 자료형이 다른 경우
+--      ex) where emp_id = 201
+
+select * from employee where emp_id = '201';
+select * from employee where emp_id = 201; -- 비용 3배 증가
+
+
+-- index 삭제
+-- drop index 인덱스명
+-- pk, uq 제약조건으로 생성된 인덱스는 직접삭제 불가능
+-- pk, uq 제약조건 제거 시 자동으로 삭제처리
+
+
+-- ====================================================
+-- PL/SQL
+-- ====================================================
+-- Procedural Language extension to SQL
+-- 기존 sql에 절차적 언어 방식을 추가하여 변수선언, 조건처리, 반복처리 지원하는 문법
+
+-- pl/sql 유형
+-- 1. 익명블럭 Anonymous Block 매번실행
+-- 2. 프로시저 - pl/sql구문을 저장하여 호출로 재사용 가능
+-- 3. 함수 - pl/sql구문을 저장하여 호출로 재사용 가능(반드시 하나의 리턴값 가짐)
+
+-- 익명블럭 구조
+/*
+    declare
+        -- 변수선언부(선택)
+    begin
+        -- 실행부(필수)
+    exception
+        -- 예외처리부(선택)
+    end;
+    /
+    
+    sql문은 ;(세미콜론)으로 각 sql문을 구분했으나,
+    pl/sql에서는 블럭안에 여러개의 sql문이 올 수 있다.
+
+    /(슬래시)가 익명블럭의 종료를 의미함.
+*/
+
+-- 서버콘솔 출력
+-- 이 설정이 있어야 pl/sql 결과를 콘솔로 확인가능
+-- 기본값이 off이므로 session생성 시 마다 매번 1회 실행 할 것
+set serveroutput on; -- 만약 오류뜨면 대문자로 ON 해보자
+
+-- 콘솔 출력 테스트
+begin
+    dbms_output.put_line('hello world');
+end;
+/
+
+declare
+    v_emp_id char(3); -- 변수 선언
+begin
+    select
+        emp_id
+    into
+        v_emp_id
+    from
+        employee
+    where
+        emp_name = '김김김'; -- 없는 이름
+        
+    dbms_output.put_line('emp_id : ' || v_emp_id);
+exception
+    when no_data_found then dbms_output.put_line('찾으시는 사원이 없습니다.');
+end;
+/
+
+-------------------------------------------------------
+-- 익명블럭
+-------------------------------------------------------
+-- declare 변수
+-- 변수명 [constant] 자료형 [not null] := 값
+
+declare
+    name varchar2(100);
+    num number := 10 * 2;
+    KKK constant number := 333;
+begin
+    name := '김사랑';
+    
+--    RA-06550: 줄 7, 열5:PLS-00363: 'KKK' 식은 피할당자로 사용될 수 없습니다
+--    KKK := KKK * 100;
+    
+    dbms_output.put_line(name);
+    dbms_output.put_line(num);
+    dbms_output.put_line(KKK);
+end;
+/
+
+
+-- 변수의 자료형
+-- 1. 기본자료형
+--      - varchar2, char, clob
+--      - number, binary_integer, pls_integer
+--      - date
+--      - boolean (true, false, null)
+-- 2. 복합자료형
+--      - record
+--      - cursor
+--      - collection (varray(배열), nested_table(List), associative array(Map) ...)
+
+-- 변수유형
+-- 1. 스칼라변수(값)
+-- 2. 참조변수(테이블.컬럼타입)
+
+-- 참조변수1. %type
+-- 변수 자료형을 직접 선언하지 않고, (다른 테이블).(특정 컬럼)을 참조
+
+declare
+    v_emp_name employee.emp_name%type;
+    v_phone employee.phone%type;
+    v_dept_title department.dept_title%type;
+begin
+    select
+        emp_name, phone,
+        (select dept_title from department where dept_code = dept_id)
+    into
+        v_emp_name, v_phone, v_dept_title
+    from employee
+    where emp_id = '&사번'; -- 사용자 임시변수에 사용자입력값 받아서 조회
+    
+    dbms_output.put_line('이름 : ' || v_emp_name);
+    dbms_output.put_line('전화번호 : ' || v_phone);
+    dbms_output.put_line('부서명 : ' || v_dept_title);
+end;
+/
+
+-- 참조변수2. %rowtype
+-- 테이블의 모든 컬럼을 참조하는 타입
+
+declare
+    emp_row employee%rowtype;
+begin
+    select *
+    into emp_row
+    from employee
+    where emp_id = '&사번';
+    
+    dbms_output.put_line('사원명 : ' || emp_row.emp_name);
+    dbms_output.put_line('이메일 : ' || emp_row.email);
+end;
+/
+
+-- 참조변수3. record
+-- 원하는 컬럼만 가지고 있는 record자료형을 만들고, 사용한다.
+
+declare
+    type my_emp_type is record(
+        emp_name employee.emp_name%type,
+        dept_title department.dept_title%type
+    );
+    
+    erow my_emp_type;
+begin
+    select
+        emp_name, dept_title
+    into
+        erow
+    from
+        employee left join department
+            on dept_code = dept_id
+    where emp_id = '&사번';
+    
+    dbms_output.put_line('이름 : ' || erow.emp_name);
+    dbms_output.put_line('부서 : ' || erow.dept_title);
+end;
+/
+
+
+-- 사원명, 직급명 처리할 수 있는 레코드를 선언하고 사번을 통해 조회하세요.
+declare
+    type my_emp_type is record(
+        emp_name employee.emp_name%type,
+        job_name job.job_name%type
+    );
+    
+    erow my_emp_type;
+begin
+    select
+        emp_name,
+        (select job_name from job where e.job_code = job_code)
+    into erow
+    from employee e
+    where emp_id = '&사번';
+    
+    dbms_output.put_line('이름 : ' || erow.emp_name);
+    dbms_output.put_line('직급 : ' || erow.job_name);
+end;
+/
+
+-- begin절에서 DML 사용하기
+-- 익명블럭 안에서 TCL 처리까지 완료해야함
+select * from tb_member;
+desc tb_member;
+
+begin
+    insert into 
+        tb_member
+    values(
+        'sinsa', '신사임당', '1234', 'sinsa@gmail.com', 'F', 1000, default
+    );
+    commit; -- 트랜잭션 처리까지 완료하기
+end;
+/
+select * from tb_member;
+
+
+-- ex_employee의 마지막 번호를 조회한 후, +1 사번을 부여해서 다음 정보를 insert하기
+-- 김테리 880808-2345678 teari@gmail.com 01012341234 null J4 S3 3500000 null 200
+select * from ex_employee;
+desc ex_employee;
+
+declare
+    v_emp_id employee.emp_id%type;
+begin
+    -- 1. 마지막 사번 조회
+    select max(emp_id) + 1
+    into v_emp_id
+    from employee;
+    dbms_output.put_line('emp_id : ' || v_emp_id);
+
+    -- 2. insert
+    insert into
+        ex_employee
+    values (
+        v_emp_id, '김테리', '880808-2345678', 'teari@gmail.com', 
+        '01012341234', null, 'J4', 'S3', 3500000, null, '200',
+        sysdate, null, 'N'
+    );
+    -- 3.트랜잭션
+    commit;
+end;
+/
+
+-------------------------------------------------------
+-- 조건문
+-------------------------------------------------------
+-- if, else if, if else
+/*
+    if 조건식 then
+        실행구문
+    end if;
+    
+    if 조건식 then
+        참일 때 실행코드
+    else
+        거짓일 때 실행코드
+    end if;
+    
+    if 조건식1 then
+        실행코드1
+    elsif 조건식2 then
+        실행코드2
+    elsif 조건식3 then
+        실행코드3
+    ...
+    end if;
+*/
+
+declare
+    n number := &숫자;
+begin
+    dbms_output.put_line(n);
+    
+--    if mod(n, 2) = 0 then
+--        dbms_output.put_line('짝수를 입력하셨습니다.');
+--    else
+--        dbms_output.put_line('홀수를 입력하셨습니다.');
+--    end if;
+
+    if n > 0 then
+        dbms_output.put_line('양수입니다.');
+    elsif n = 0 then
+        dbms_output.put_line('0입니다.');
+    else
+        dbms_output.put_line('음수입니다.');
+    end if;
+    
+    dbms_output.put_line('끝');
+end;
+/
+
+
+-- case문
+/*
+    -- 문법1.
+    case 표현식
+        when 값1 then
+            실행코드1 ;
+        when 값2 then
+            실행코드2 ;
+        ...
+        else
+            기본실행코드 ;
+    end case;
+    
+    -- 문법2.
+    case
+        when 조건식1 then 실행코드1 ;
+        when 조건식2 then 실행코드2 ;
+        when 조건식3 then 실행코드3 ;
+        else 기본실행코드 ;
+    end case;
+*/
+
+-- 가위(1) 바위(2) 보(3)
+declare
+    n number := &가위바위보123 ;
+begin
+    case (n)
+        when 1 then dbms_output.put_line('가위');
+        when 2 then dbms_output.put_line('바위');
+        when 3 then dbms_output.put_line('보');
+        else dbms_output.put_line('잘못 입력하셨습니다.');
+    end case;
+end;
+/
+
+declare
+    n number := &가위바위보123 ;
+    com number := dbms_randum.value(1, 4); -- 1.0보다 크거나 같고 4.0보다 작은 실수 반환
+begin
+    dbms_output.put_line(com);
+    case
+        when n = 1 then dbms_output.put_line('가위');
+        when n = 2 then dbms_output.put_line('바위');
+        when n = 3 then dbms_output.put_line('보');
+        else dbms_output.put_line('잘못 입력하셨습니다.');
+    end case;
+end;
+/
+
+-- 가위(1) 바위(2) 보(3)
+declare
+    com number := trunc(dbms_random.value(1, 4)); -- 1.0보다 크거나 같고 4.0보다 작은 실수 반환
+    n number := &가위바위보123 ;
+begin
+    dbms_output.put_line('사용자 : ' || n);
+    dbms_output.put_line('컴퓨터 : ' || com);
+    
+    case (n)
+        when 1 then
+            if com = 1 then dbms_output.put_line('비겼습니다.');
+            elsif com = 2 then dbms_output.put_line('졌습니다.');
+            elsif com = 3 then dbms_output.put_line('이겼습니다.');
+            end if;
+        when 2 then
+            if com = 1 then dbms_output.put_line('이겼습니다.');
+            elsif com = 2 then dbms_output.put_line('비겼습니다.');
+            elsif com = 3 then dbms_output.put_line('졌습니다.');
+            end if;
+        when 3 then dbms_output.put_line('보');
+            if com = 1 then dbms_output.put_line('졌습니다.');
+            elsif com = 2 then dbms_output.put_line('이겼습니다.');
+            elsif com = 3 then dbms_output.put_line('비겼습니다.');
+            end if;
+        else dbms_output.put_line('잘못 입력하셨습니다.');
+    end case;
+    
+    -- 강사님 풀이
+    case 
+        when n = 1 then dbms_output.put_line('가위를 냈습니다.');
+        when n = 2 then dbms_output.put_line('바위를 냈습니다.');
+        when n = 3 then dbms_output.put_line('보를 냈습니다.');
+        else dbms_output.put_line('잘못 입력하셨습니다.'); return;
+    end case;
+    case
+        when com = n then dbms_output.put_line('> 비겼습니다.');
+        when ((n = 1 and com = 3) or (n = 2 and com = 1) or (n = 3 and com = 2)) then dbms_output.put_line('> 당신이 이겼습니다.');
+        else dbms_output.put_line('> 당신이 졌습니다.');
+    end case;
+    
+end;
+/
+
+-- 사번을 입력받고, 관리자에 대한 성과급을 지급하려한다.
+-- 관리하는 사원이 5명이상은 급여의 15% 지급 : '성과급은 ??원입니다.'
+-- 관리하는 사원이 5명미만은 급여의 10% 지급 : ' 성과급은 ??원입니다.'
+-- 관리하는 사원이 없는 경우는 '대상자가 아닙니다.'
+
+declare
+    v_emp_id employee.emp_id%type := '&사번';
+    v_manage_num number;
+    v_bonus employee.salary%type; -- 성과급
+begin
+    -- 관리 사원 수 조회
+    select
+        count(*) manage_num
+    into
+        v_manage_num
+    from
+        employee e join employee m
+            on e.manager_id = m.emp_id
+    where m.emp_id = v_emp_id
+    group by m.emp_id;
+    
+    -- 관리자 봉급 조회
+    select salary
+    into v_bonus
+    from employee
+    where emp_id = v_emp_id;
+    dbms_output.put_line('기본 봉급은' || v_bonus || '원 입니다.');
+    
+    -- 성과급 출력
+    case
+        when v_manage_num >= 5
+            then dbms_output.put_line('성과급은' || v_bonus*0.15 || '원 입니다.');
+        when v_manage_num < 5
+            then dbms_output.put_line('성과급은' || v_bonus*0.1 || '원 입니다.');
+    end case;
+exception
+    when no_data_found then dbms_output.put_line('대상자가 아닙니다.');
+end;
+/
+
+-- 수진님 풀이
+declare
+    v_emp_id_cnt ex_employee.emp_id%type;
+    v_bonus ex_employee.salary%type;
+begin
+    select
+        (select count(*) from employee where e.emp_id = manager_id), salary
+    into
+        v_emp_id_cnt, v_bonus
+    from
+        ex_employee e
+    where emp_id = '&사번';
+    
+    if  v_emp_id_cnt >= 5 then
+            dbms_output.put_line('성과금은 ' || (v_bonus * 0.15) || '원입니다.');
+    elsif  v_emp_id_cnt < 5 then
+            dbms_output.put_line('성과금은 ' || (v_bonus * 0.10) || '원입니다.');
+    elsif v_emp_id_cnt < 0 then
+            dbms_output.put_line('대상자가 아닙니다.');
+    end if;        
+end;
+/
+
+-- 강사님 풀이
+declare
+    salary employee.salary%type;
+    num number; -- 부하직원수
+begin
+    -- 1. 사번으로 부하직원수, 급여 조회
+    select
+        (select count(*) from employee where manager_id = e.emp_id), 
+        salary
+    into
+        num, salary
+    from
+        employee e
+    where
+        emp_id = '&사번';
+        
+    dbms_output.put_line(num || ', ' || salary);
+
+    -- 2. 성과금 평가
+    if num >= 5 then
+        dbms_output.put_line('성과금 : ' || salary * 0.15 || '원');
+    elsif num > 0 then
+        dbms_output.put_line('성과금 : ' || salary * 0.1 || '원');
+    else
+        dbms_output.put_line('성과금 대상자가 아닙니다');
+    end if;
+end;
+/
+
+-------------------------------------------------------
+-- 반복문
+-------------------------------------------------------
+-- loop, while loop, for loop
+
+-- loop 무한반복 + 탈출문 exit
+declare
+    n number := 1;
+begin
+    
+    loop
+        dbms_output.put_line(n);
+        n := n + 1;
+        
+        -- 탈출조건(필수)
+        exit when n > 5;
+    end loop;
+end;
+/
+
+-- while (조건식) loop
+declare
+    n number := 1;
+begin
+    while  n <= 5 loop
+        dbms_output.put_line(n);
+        n := n + 1;
+    end loop;
+end;
+/
+
+-- for loop : 증감변수 별도 선언 불필요
+-- 증감변수 범위만큼 반복후 자동 종료
+-- for 증감변수 in [reverse] 시작값 .. 종료값
+-- 증감처리는 +1이며, 변경불가
+begin
+    for n in 1..5 loop
+        dbms_output.put_line(n);
+    end loop;
+    
+    for n in reverse 1..5 loop -- 역방향으로 돌려 -1 증감처리 역할
+        dbms_output.put_line(n);
+    end loop;
+end;
+/
+
+-- 구구단에서 사용자 입력 단 출력
+declare
+    dan number := &구구단수 ;
+begin
+    for n in 1 .. 9 loop
+        dbms_output.put_line(dan || ' * ' || n || ' = ' || (dan * n));
+    end loop;
+end;
+/
+
+-- 2단~ 9단 출력
+begin
+    for n in 2 .. 9 loop
+        for m in 1..9 loop
+            dbms_output.put_line(n || ' * ' || m || ' = ' || (n * m));
+        end loop;
+        dbms_output.new_line; -- 공백행 출력
+    end loop;
+end;
+/
+
+-- 사원정보 출력
+-- select문의 조회결과를 1행씩 처리
+declare
+    erow employee%rowtype ;
+    v number := 200;
+begin
+    for n in 200..223 loop        
+        select *
+        into erow
+        from employee
+        where emp_id = n;
+    
+        dbms_output.put_line(erow.emp_id || '   ' || erow.emp_name || '     ' || erow.email);
+    end loop;
+end;
+/
