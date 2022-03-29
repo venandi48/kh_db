@@ -3955,3 +3955,621 @@ begin
     end loop;
 end;
 /
+
+
+-- ====================================================
+-- DATABASE OBJECT2
+-- ====================================================
+-- pl/sql문법을 사용하는 db 객체(function, procedure, cursor, trigger, ...)
+
+
+-------------------------------------------------------
+-- STORED FUNCTION
+-------------------------------------------------------
+-- 리턴값이 반드시 존재하는 프로시저 객체
+-- 함수 객체는 일반 sql문, 다른 프로시저, 익명블럭에서 호출가능
+-- 기존 sql 실행과 달리, 미리 컴파일하므로 실행속도 빠름
+
+/*
+    create [or replace] function 함수명(매개변수1, 매개변수2, ...)
+    return 자료형
+    is
+        -- 지역변수선언
+    begin
+        -- 실행코드
+        return 리턴값;
+    [exception]
+        -- 예외처리
+        return 예외발생시 리턴값;
+    end;
+    /
+*/
+
+-- 양모자 씌우기
+-- 매개변수, 리턴타입에 자료형의 크기는 지정하지 않음
+-- pl/sql의 varchar2(32,676byte)가 최대
+create or replace function myfunc(p_emp_name employee.emp_name%type)
+return varchar2
+is
+    result varchar2(32676);
+begin
+    result := 'd' || p_emp_name || 'b';
+    dbms_output.put_line(result || '@myfunc');
+    return result;
+end;
+/
+
+-- 1. 익명블럭에서 호출
+begin
+    dbms_output.put_line(myfunc('&이름'));
+end;
+/
+
+-- 2. 일반 sql문에서 호출
+-- 함수 내부의 로그출력 없음
+select
+    myfunc(emp_name)
+from employee;
+
+-- data dictionary에서 확인
+-- user_procedures에서 object_type='FUNCTION'
+select *
+from user_procedures
+where object_type = 'FUNCTION';
+
+
+-- 주민번호를 인자로 성별을 리턴하는 저장함수 fn_get_gender
+create or replace function fn_get_gender(
+    p_emp_no employee.emp_no%type
+)
+return char
+is
+    v_gender char(3);
+begin
+    case substr(p_emp_no, 8, 1)
+        when '1' then v_gender := '남';
+        when '3' then v_gender := '남';
+        else v_gender := '여';
+    end case;
+    
+    return v_gender;
+end;
+/
+
+select
+    emp_name,
+    emp_no,
+    fn_get_gender(emp_no) gender
+from employee;
+
+
+-- 주민번호를 인자로 받아서 한국나이를 리턴하는 fn_get_age
+create or replace function fn_get_age(p_emp_no employee.emp_no%type)
+return number
+is
+    v_age number;
+begin
+    case substr(p_emp_no, 8, 1)
+        when '1' then v_age := 1900;
+        when '2' then v_age := 1900;
+        else v_age := 2000;
+    end case;
+    v_age := extract(year from sysdate) - (v_age + substr(p_emp_no, 1, 2)) + 1;
+    return v_age;
+end;
+/
+
+select
+    emp_name, 
+    emp_no, 
+    fn_get_age(emp_no) age
+from employee;
+
+
+-------------------------------------------------------
+-- STORED PROCEDURE
+-------------------------------------------------------
+-- 일련의 작업절차를 객체로 저장하고 호출해서 사용하는 객체
+-- 리턴값이 없음
+-- out매개변수를 이용해서 호출부로 값전달 가능
+-- 미리 컴파일하므로 일반 sql대비 처리효율이 좋음
+-- select문에서 호출불가. 익명블럭 혹은 다른 프로시저에서 호출가능
+
+/*
+    create [or replace] procedure 프로시저명(매개변수1 mode 자료형, 매개변수2 mode 자료형, ...)
+    is
+        -- 지역변수선언
+    begin
+        -- 실행코드
+    end;
+    /
+    
+    mode : in(기본값), out, inout
+        - in : 프로시저 값을 전달
+        - out : 프로시저의 처리내용을 담아서 호출부로 전달
+        - inout : 두가지 기능 모두 사용
+*/
+
+create or replace procedure proc_get_emp(
+    p_emp_id in employee.emp_id%type,
+    p_emp_name out employee.emp_name%type,
+    p_phone out employee.phone%type
+)
+is
+begin
+    -- 해당사원 조회
+    select
+        emp_name, phone
+    into
+        p_emp_name, p_phone
+    from
+        employee
+    where
+        emp_id = p_emp_id;
+    
+    dbms_output.put_line('사원명@proc_get_emp : ' || p_emp_name);
+    dbms_output.put_line('전화번호@proc_get_emp : ' || p_phone);
+end;
+/
+
+-- 익명블럭에서 호출
+declare
+    v_emp_id employee.emp_id%type := '&사번';
+    v_emp_name employee.emp_name%type;
+    v_phone employee.phone%type;
+begin
+    -- 프로시저 호출
+    proc_get_emp(v_emp_id, v_emp_name, v_phone);
+    
+    -- 값확인
+    dbms_output.put_line('사원명 : ' || v_emp_name);
+    dbms_output.put_line('전화번호 : ' || v_phone);
+end;
+/
+
+-- 사원 삭제 프로시저
+-- DML처리시에는 트랜젝션처리까지 함께 할 것
+
+create or replace procedure proc_del_emp(
+    p_emp_id ex_employee.emp_id%type -- in mode(기본값)
+)
+is
+begin
+    -- 삭제
+    delete from 
+        ex_employee
+    where
+        emp_id = p_emp_id;
+    -- 트랜잭션처리
+    commit;
+    -- 콘솔로깅
+    dbms_output.put_line(p_emp_id || '번 사원을 삭제했습니다.');
+end;
+/
+
+begin
+    proc_del_emp('&사번');
+end;
+/
+
+select * from ex_employee;
+
+
+-- upsert 예제
+-- 특정 행이 없으면 insert
+-- 특정 행이 존재하면 update
+
+-- ex_job테이블
+create table ex_job
+as
+select * from job;
+
+-- 기본키, 자료형 수정
+alter table
+    ex_job
+add constraint pk_ex_job_code primary key(job_code)
+modify job_code varchar2(5)
+modify job_name not null;
+
+select * from ex_job;
+
+-- 인자로 전달한 직급코드, 직급명에 따라 insert또는 update처리를 하는 프로시저
+create or replace procedure proc_upsert_ex_job(
+    p_job_code ex_job.job_code%type,
+    p_job_name ex_job.job_name%type
+)
+is
+    v_cnt number;
+begin
+    -- 1. p_job_code의 존재여부 확인
+    select
+        count(*)
+    into
+        v_cnt
+    from
+        ex_job
+    where
+        job_code = p_job_code;
+    
+    -- 2. 존재하면 update, 존재하지 않으면 insert
+    if v_cnt = 0 then
+        insert into 
+            ex_job
+        values(
+            p_job_code, p_job_name
+        );
+    else
+        update
+            ex_job
+        set
+            job_name = p_job_name
+        where
+            job_code = p_job_code;
+    end if;
+    
+    -- 3. 트랜잭션 처리
+    commit;
+end;
+/
+
+begin
+--    proc_upsert_ex_job('J8','인턴'); -- insert
+    proc_upsert_ex_job('J8','수습'); -- update
+end;
+/
+select * from ex_job;
+
+-- dd에서 조회
+select * from user_procedures where object_type = 'PROCEDURE';
+
+
+-------------------------------------------------------
+-- CURSOR
+-------------------------------------------------------
+-- 커서란 sql실행결과를 가지고 있는 메모리 영역(private sql)에 대한 포인터객체
+-- 한 행 이상의 결과집합의 경우도 순차적 접근가능
+
+-- 1. 암시적 커서
+-- 2. 명시적 커서
+
+-- open - fetch - close의 단계를 거쳐 처리함
+
+-- 커서 속성
+-- %rowcount : 최근 실행된 sql문의 결과행 수
+-- %notfound : 결과집합에서 fetch된 행이 존재하면 false, 존재하지 않으면 true
+-- %found    : 결과집합에서 fetch된 행이 존재하면 true, 존재하지 않으면 false
+-- %isopen   : 최근 실행된 sql문 커서가 open상태이면 true
+
+-- 암시적 커서 확인
+declare
+    v_emp_id employee.emp_id%type := '&사번';
+    v_emp_name employee.emp_name%type;
+begin
+    select emp_name
+    into v_emp_name
+    from employee
+    where emp_id = v_emp_id;
+    
+    if sql%found then
+        dbms_output.put_line('조회된 행수 : ' || sql%rowcount);
+    end if;
+end;
+/
+
+-- 명시적 커서
+-- 선언 - open - fetch - close
+-- 직접 결과집합에 접근해서 행에 대한 처리가능
+-- for .. in문 안에서는 open/close를 자동처리해주어서 간단하게 커서 사용가능
+
+
+declare
+    -- 커서선언
+    cursor mycursor
+    is
+    select * from employee;
+    
+    erow employee%rowtype;
+begin
+    -- 커서 open
+    open mycursor;
+    
+    loop
+        -- 커서 fetch
+        fetch mycursor into erow; -- 한행씩 가져오기
+        exit when mycursor%notfound; -- 더이상 가져올 행이 없는 경우 exit
+        dbms_output.put_line('사번 ' || erow.emp_id || '  사원명 ' || erow.emp_name);
+    end loop;
+    
+    -- 커서 close
+    close mycursor;
+end;
+/
+
+-- for..in문에서 명시적 커서 사용하기
+-- open, fetch, close 대신 처리
+-- fetch된 행을 담을 변수도 for..in안에서 선언
+-- 별도의 exit 작성 불필요
+declare
+    -- 커서선언
+    cursor mycursor
+    is
+    select * from employee;
+begin
+    -- open, fetch, close 자동처리
+    for erow in mycursor loop
+        dbms_output.put_line('사번 ' || erow.emp_id || '  사원명 ' || erow.emp_name);
+    end loop;
+end;
+/
+
+-- 매개변수가 있는 커서
+-- 커서 선언시 매개변수도 함께 선언, open할 때 매개인자 전달
+declare
+   cursor cs_emp_by_dept(p_dept_code employee.dept_code%type)
+   is
+   select * from employee where dept_code = p_dept_code;
+   
+   v_dept_code employee.dept_code%type := '&부서코드';
+begin
+   dbms_output.put_line('사번  사원명    부서코드');
+   dbms_output.put_line('====================================');
+   for erow in cs_emp_by_dept(v_dept_code) loop
+        dbms_output.put_line(erow.emp_id || '   ' || erow.emp_name || '    ' || erow.dept_code);
+   end loop;
+end;
+/
+
+-- 사용자에게 부서명을 입력받고 해당 부서원을 모두 조회하는 proc_print_emp_by_dept 작성
+-- 익명블럭에서 호출 proc_print_emp_by_dept('총무부');
+-- 사번 사원명 부서명
+
+-- 프로시저 선언
+create or replace procedure proc_print_emp_by_dept(
+    p_emp_dept department.dept_title%type
+)
+is
+    cursor cs_emp_by_deptname(p_dept_name department.dept_title%type)
+    is
+    select *
+    from employee join department
+         on dept_code = dept_id
+    where
+       dept_title = p_emp_dept;
+begin
+    dbms_output.put_line('사번  사원명    부서명');
+    dbms_output.put_line('====================================');
+    
+    for erow in cs_emp_by_deptname(p_emp_dept) loop
+        dbms_output.put_line(erow.emp_id || '  ' || erow.emp_name || '    ' || erow.dept_title);
+    end loop;
+       
+end;
+/
+-- 강사님 풀이
+create or replace procedure proc_print_emp_by_dept(
+    p_dept_title department.dept_title%type
+)
+is
+    cursor cs_emp_by_dept(pc_dept_title department.dept_title%type)
+    is
+    select
+        e.emp_id, e.emp_name, d.dept_title
+    from
+        employee e left join department d
+            on e.dept_code = d.dept_id
+    where
+        d.dept_title = pc_dept_title;
+begin
+
+    for erow in cs_emp_by_dept(p_dept_title) loop
+        dbms_output.put_line(erow.emp_id || '   ' || erow.emp_name || '     ' || erow.dept_title);
+    end loop;
+
+end;
+/
+
+begin
+    proc_print_emp_by_dept('&부서명');
+end;
+/
+
+
+-------------------------------------------------------
+-- TRIGGER
+-------------------------------------------------------
+-- 의미 : 연쇄반응, 방아쇠
+-- 특정 이벤트, DDL, DML 등이 실행되었을 때 자동적으로 특정 처리가 일어나게 하는 객체
+
+-- 종료
+-- 1. Logon/Logoff Trigger
+-- 2. DDL Trigger
+-- 3. DML Trigger - inser/update/delete구문이 실행되었을 때 트리거의 내용을 실행
+
+-- 예시)
+-- 회원탈퇴시 탈퇴회원테이블에 자동으로 추가
+-- 프로필변경 시, 변경내역을 로그테이블에 추가
+
+/*
+    create [or replace] trigger 트리거명
+        before | after
+        insert or update or delete on 테이블명
+        [for each row]
+    declare
+        -- 지역변수 선언
+    begin
+        -- 실행코드
+    end;
+    /
+    
+    - before | after : 원DML의 실행전/후 트리거 설정
+    - for each row
+        - 생략시 문장레벨 트리거 : 원DML문 당 1번 실행
+        - 작성시 행레벨 트리거 : 처리되는 레코드 당 1번 실행
+    
+    - 행레벨 트리거 시 의사레코드(pseudo record)
+                DML실행전      DML실행후
+    --------------------------------------
+    insert      null          :new.컬럼명
+    update      :old.컬럼명    :new.컬럼명
+    delete      :old.컬럼명    null
+*/
+
+
+create table tb_user(
+    no number,
+    name varchar2(100) not null,
+    constraint pk_tb_user_no primary key(no)
+);
+-- drop table tb_user;
+
+create sequence seq_tb_user_no;
+-- drop sequence seq_tb_user_no;
+
+create table tb_user_log(
+    no number,
+    log varchar2(4000) not null,
+    log_date date default sysdate,
+    constraint pk_tb_user_log_no primary key(no)
+);
+-- drop table tb_user_log;
+
+create sequence seq_tb_user_log_no;
+-- drop sequence seq_tb_user_log_no;
+
+-- tb_user에 insert/update/delete할때마다 tb_user_log에 insert
+-- trigger
+create or replace trigger trig_tb_user_log
+    before
+    insert or update or delete on tb_user
+    for each row
+begin
+    -- 상태를 나타내는 boolean형 키워드
+    -- inserting : insert시 true
+    -- updating, updating('컬럼명') : 컬럼을 수정하면 true
+    -- deleting : delete시 true
+    
+    if inserting then
+        insert into 
+            tb_user_log(no, log)
+        values(
+            seq_tb_user_log_no.nextval,
+            :new.no || '번 ' || :new.name || '님이 회원가입했습니다.'
+        );
+    elsif updating then
+        insert into
+            tb_user_log(no, log)
+        values(
+            seq_tb_user_log_no.nextval,
+            :new.no || '번 회원이 ' || :old.name || '에서 ' || :new.name || '으로 이름변경했습니다.'
+        );
+    elsif deleting then
+        insert into
+            tb_user_log(no, log)
+        values(
+            seq_tb_user_log_no.nextval,
+            :old.no || '번 ' || :old.name || '님이 탈퇴했습니다.'
+        );
+    end if;
+    
+    -- 트랜잭션처리 하지 않는다.
+    -- 트리거의 트랜잭션은 원 DML문에 따라 commit또는 rollback처리
+end;
+/
+
+-- 원 DML 실행
+insert into 
+    tb_user
+values(
+    seq_tb_user_no.nextval,
+    '홍길동'
+);
+
+update
+    tb_user
+set
+    name = '고길동'
+where
+    no = 2;
+
+delete from tb_user
+where no = 2;
+
+rollback;
+commit;
+
+select * from tb_user;
+select * from tb_user_log;
+
+
+-- 트리거를 이용한 재고관리
+-- 상품테이블(재고)
+-- 입출고테이블
+create table tb_product(
+    pcode varchar2(20),
+    pname varchar2(50),
+    price number,
+    stock number default 0,
+    constraint pk_tb_product primary key(pcode),
+    constraint ck_tb_product check(stock >= 0)
+);
+
+create table tb_product_io(
+    no number,
+    pcode varchar2(20),
+    status char(1), -- 입고 I, 출고 O
+    amount number,
+    io_date date default sysdate,
+    constraint pk_tb_product_io_no primary key(no),
+    constraint fk_tb_product_io_pcode 
+        foreign key(pcode) references tb_product(pcode)
+);
+
+create sequence seq_tb_product_io_no;
+
+-- 상품데이터
+insert into tb_product
+values(
+    'apple_iphone_X', '아이폰X', 1000000, default
+);
+insert into tb_product
+values(
+    'samsung_galaxy_20', '갤럭시20', 1500000, default
+);
+
+-- 트리거 생성
+create or replace trigger trig_tb_product_stock
+    before
+    insert on tb_product_io
+    for each row
+begin
+    if :new.status = 'I' then
+    -- 입고 시 +amount
+        update 
+            tb_product
+        set
+            stock = stock + :new.amount
+        where
+            pcode = :new.pcode;
+    else
+    -- 출고 시 -amount
+        update 
+            tb_product
+        set
+            stock = stock - :new.amount
+        where
+            pcode = :new.pcode;
+    end if;
+end;
+/
+
+select * from tb_product;
+select * from tb_product_io;
+
+-- 입출고데이터
+insert into tb_product_io values(
+    seq_tb_product_io_no.nextval, 'apple_iphone_X', 'I', 10, default
+);
+insert into tb_product_io values(
+    seq_tb_product_io_no.nextval, 'apple_iphone_X', 'O', 3, default
+);
+
