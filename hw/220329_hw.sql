@@ -36,7 +36,9 @@ create or replace trigger trig_tbl_emp_quit
     for each row
 begin
     insert into tbl_emp_quit
-    values(:old.emp_id, :old.emp_name, :old.emp_no, :old.email, :old.phone, :old.dept_code, :old.job_code, :old.sal_level, :old.salary, :old.bonus, :old.manager_id, :old.hire_date, sysdate);
+    values(:old.emp_id, :old.emp_name, :old.emp_no, :old.email, :old.phone,
+        :old.dept_code, :old.job_code, :old.sal_level, :old.salary, :old.bonus,
+        :old.manager_id, :old.hire_date, sysdate);
 end;
 /
 
